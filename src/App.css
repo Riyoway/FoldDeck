@@ -1025,6 +1025,18 @@ body.resizing-v {
   flex-shrink: 0;
 }
 
+.settings-input-sm {
+  width: 120px;
+}
+
+.settings-control-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
 /* toggle switch */
 
 .switch {

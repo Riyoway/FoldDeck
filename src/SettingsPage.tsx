@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Button, Input, Switch, Tab, Tabs } from "@heroui/react";
+import { Button, Input, Select, SelectItem, Switch, Tab, Tabs } from "@heroui/react";
 import { FolderOpen, RotateCcw } from "lucide-react";
 import { applyUiZoom, getSetting, setSetting } from "./settings";
 
@@ -35,6 +35,15 @@ const SHELL_PRESETS: [string, string][] = [
 ];
 
 const TERM_FONT_SIZES = [12, 13, 14, 16];
+
+const FONT_PRESETS: [string, string][] = [
+  ["Cascadia Code", '"Cascadia Code", "Cascadia Mono", Consolas, monospace'],
+  ["Cascadia Mono", '"Cascadia Mono", Consolas, monospace'],
+  ["JetBrains Mono", '"JetBrains Mono", Consolas, monospace'],
+  ["Fira Code", '"Fira Code", Consolas, monospace'],
+  ["Consolas", "Consolas, monospace"],
+  ["Courier New", '"Courier New", monospace'],
+];
 
 const FILE_SERVER_OPTIONS: ["ask" | "builtin" | "python", string][] = [
   ["ask", "Ask every time"],
@@ -92,6 +101,20 @@ export default function SettingsPage() {
   const [termShell, setTermShell] = useState(getSetting("terminalShell"));
   const [termSize, setTermSize] = useState(getSetting("terminalFontSize"));
   const [termFont, setTermFont] = useState(getSetting("terminalFontFamily"));
+  const [sizeCustom, setSizeCustom] = useState(!TERM_FONT_SIZES.includes(getSetting("terminalFontSize")));
+  const [fontCustom, setFontCustom] = useState(
+    !FONT_PRESETS.some(([, v]) => v === getSetting("terminalFontFamily")),
+  );
+
+  const changeTermSize = (n: number) => {
+    const clamped = Math.min(32, Math.max(8, Math.round(n) || 13));
+    setSetting("terminalFontSize", clamped);
+    setTermSize(clamped);
+  };
+  const changeTermFont = (v: string) => {
+    setSetting("terminalFontFamily", v);
+    setTermFont(v);
+  };
 
   useEffect(() => {
     invoke<{ appData: string; recipes: string }>("get_app_paths").then(setPaths);
@@ -212,39 +235,84 @@ export default function SettingsPage() {
                 <div className="settings-label">Font size</div>
                 <div className="settings-desc">Text size inside the terminal.</div>
               </div>
-              <Tabs
-                size="md"
-                aria-label="Terminal font size"
-                selectedKey={String(termSize)}
-                onSelectionChange={(k) => {
-                  const n = Number(k);
-                  setSetting("terminalFontSize", n);
-                  setTermSize(n);
-                }}
-              >
-                {TERM_FONT_SIZES.map((n) => (
-                  <Tab key={String(n)} title={`${n}px`} />
-                ))}
-              </Tabs>
+              <div className="settings-control-col">
+                <Tabs
+                  size="md"
+                  aria-label="Terminal font size"
+                  selectedKey={sizeCustom ? "custom" : String(termSize)}
+                  onSelectionChange={(k) => {
+                    if (k === "custom") {
+                      setSizeCustom(true);
+                    } else {
+                      setSizeCustom(false);
+                      changeTermSize(Number(k));
+                    }
+                  }}
+                >
+                  {[...TERM_FONT_SIZES.map((n) => <Tab key={String(n)} title={`${n}px`} />), <Tab key="custom" title="Custom" />]}
+                </Tabs>
+                {sizeCustom && (
+                  <Input
+                    size="sm"
+                    type="number"
+                    variant="bordered"
+                    className="settings-input-sm"
+                    value={String(termSize)}
+                    min={8}
+                    max={32}
+                    endContent={<span className="dim">px</span>}
+                    onValueChange={(v) => changeTermSize(Number(v))}
+                    aria-label="Custom font size"
+                  />
+                )}
+              </div>
             </div>
 
             <div className="settings-row">
               <div className="settings-row-text">
                 <div className="settings-label">Font family</div>
-                <div className="settings-desc">
-                  A monospace font stack, e.g. <code>"JetBrains Mono", Consolas, monospace</code>.
-                </div>
+                <div className="settings-desc">Pick a monospace font, or choose Custom to type your own stack.</div>
               </div>
-              <Input
-                size="md"
-                variant="bordered"
-                className="settings-input"
-                value={termFont}
-                onValueChange={(v) => {
-                  setTermFont(v);
-                  setSetting("terminalFontFamily", v);
-                }}
-              />
+              <div className="settings-control-col">
+                <Select
+                  size="md"
+                  aria-label="Terminal font"
+                  className="settings-input"
+                  selectedKeys={[fontCustom ? "__custom__" : termFont]}
+                  onSelectionChange={(keys) => {
+                    const key = Array.from(keys)[0] as string | undefined;
+                    if (!key) return;
+                    if (key === "__custom__") {
+                      setFontCustom(true);
+                    } else {
+                      setFontCustom(false);
+                      changeTermFont(key);
+                    }
+                  }}
+                >
+                  {[
+                    ...FONT_PRESETS.map(([label, value]) => (
+                      <SelectItem key={value} textValue={label}>
+                        <span style={{ fontFamily: value }}>{label}</span>
+                      </SelectItem>
+                    )),
+                    <SelectItem key="__custom__" textValue="Custom">
+                      Custom…
+                    </SelectItem>,
+                  ]}
+                </Select>
+                {fontCustom && (
+                  <Input
+                    size="sm"
+                    variant="bordered"
+                    className="settings-input"
+                    value={termFont}
+                    onValueChange={changeTermFont}
+                    placeholder='"JetBrains Mono", Consolas, monospace'
+                    aria-label="Custom font family"
+                  />
+                )}
+              </div>
             </div>
           </>
         )}
