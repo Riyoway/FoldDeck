@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "FoldDeck",
   "version": "0.1.0",
   "identifier": "com.riyoway.folddeck",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "tauri-app",
-        "width": 800,
-        "height": 600
+        "title": "FoldDeck",
+        "width": 1100,
+        "height": 750,
+        "minWidth": 720,
+        "minHeight": 480
       }
     ],
     "security": {
