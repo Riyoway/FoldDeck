@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import BotPanel from "./BotPanel";
 import Dashboard from "./Dashboard";
+import LogView from "./LogView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
@@ -152,6 +153,33 @@ function App() {
   useEffect(() => {
     if (tab === "logs" && getSetting("logAutoScroll")) logEndRef.current?.scrollIntoView();
   }, [logs, selectedId, tab]);
+
+  // Frameless-window guards: keep the custom titlebar reachable if the window is
+  // dragged above the screen top, and compensate for Windows' borderless-maximize
+  // overflow so the titlebar isn't clipped off the top edge.
+  useEffect(() => {
+    const syncMaximized = async () => {
+      const isMax = await appWindow.isMaximized();
+      document.documentElement.classList.toggle("maximized", isMax);
+      let inset = 0;
+      if (isMax) {
+        const [pos, mon] = await Promise.all([appWindow.outerPosition(), currentMonitor()]);
+        if (mon) inset = Math.max(0, (mon.position.y - pos.y) / mon.scaleFactor);
+      }
+      document.documentElement.style.setProperty("--max-inset-top", `${inset}px`);
+    };
+    const unlisten = [
+      appWindow.onMoved(async ({ payload }) => {
+        if (await appWindow.isMaximized()) return;
+        const mon = await currentMonitor();
+        const top = mon ? mon.position.y : 0;
+        if (payload.y < top) await appWindow.setPosition(new PhysicalPosition(payload.x, top));
+      }),
+      appWindow.onResized(syncMaximized),
+    ];
+    syncMaximized();
+    return () => unlisten.forEach((u) => u.then((f) => f()));
+  }, []);
 
   const selected = projects.find((p) => p.id === selectedId) ?? null;
 
@@ -499,7 +527,7 @@ function App() {
               <div className="tab-content">
                 {activeTab === "logs" && (
                   <div className="terminal">
-                    <pre>{(logs[selected.id] ?? []).join("\n") || "No output. Press Start to run the project."}</pre>
+                    <LogView lines={logs[selected.id] ?? []} />
                     <div ref={logEndRef} />
                   </div>
                 )}
