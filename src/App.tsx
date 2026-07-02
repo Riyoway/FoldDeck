@@ -556,8 +556,6 @@ function App() {
                 </div>
               </div>
 
-              <div className="detail-resize" onPointerDown={startHeaderResize} title="Drag to resize" />
-
               <div className="tabbar">
                 {tabs
                   .filter(([, , show]) => show)
@@ -571,6 +569,8 @@ function App() {
                     </button>
                   ))}
               </div>
+
+              <div className="detail-resize" onPointerDown={startHeaderResize} title="Drag to resize" />
 
               <div className="tab-content">
                 {activeTab === "logs" && (

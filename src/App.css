@@ -423,22 +423,22 @@ body.dragging-row * {
 }
 
 .detail-resize {
-  height: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  height: 7px;
+  margin-top: -1px;
   cursor: row-resize;
   flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
+  z-index: 4;
 }
 
 .detail-resize::after {
   content: "";
-  width: 34px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border-2);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: transparent;
   transition: background 0.12s;
 }
 
