@@ -22,9 +22,20 @@ interface Props {
   onStart: (project: ProjectInfo) => void;
   onStop: (id: string) => void;
   onChanged: () => void;
+  onProjectContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
+  onBackgroundContextMenu: (e: React.MouseEvent) => void;
 }
 
-export default function Dashboard({ projects, statuses, onSelect, onStart, onStop, onChanged }: Props) {
+export default function Dashboard({
+  projects,
+  statuses,
+  onSelect,
+  onStart,
+  onStop,
+  onChanged,
+  onProjectContextMenu,
+  onBackgroundContextMenu,
+}: Props) {
   const [ports, setPorts] = useState<PortInfo[]>([]);
   const [editingPort, setEditingPort] = useState<string | null>(null);
   const [portDraft, setPortDraft] = useState("");
@@ -60,7 +71,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
   ];
 
   return (
-    <div className="dashboard">
+    <div className="dashboard" onContextMenu={onBackgroundContextMenu}>
       <div className="dash-inner">
         <div className="stats">
           {stats.map(([label, value, cls]) => (
@@ -93,6 +104,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                   key={p.id}
                   className={`proj-card ${isRunning ? "proj-card-on" : ""}`}
                   onClick={() => onSelect(p.id)}
+                  onContextMenu={(e) => onProjectContextMenu(e, p)}
                 >
                   <div className="proj-card-head">
                     <ProjectIcon project={p} size={16} />

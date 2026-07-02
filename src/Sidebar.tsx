@@ -15,6 +15,8 @@ interface Props {
   onAddFolder: () => void;
   onReorder: (ids: string[]) => void;
   onResize: (width: number) => void;
+  onProjectContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
+  onBackgroundContextMenu: (e: React.MouseEvent) => void;
 }
 
 const MIN_W = 210;
@@ -27,6 +29,7 @@ function ProjectRow({
   onSelect,
   onDragStart,
   onDragEnd,
+  onContextMenu,
 }: {
   project: ProjectInfo;
   running: boolean;
@@ -34,6 +37,7 @@ function ProjectRow({
   onSelect: (id: string) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
 }) {
   const controls = useDragControls();
   return (
@@ -44,6 +48,7 @@ function ProjectRow({
       dragControls={controls}
       className={`row ${selected ? "row-selected" : ""}`}
       onClick={() => onSelect(project.id)}
+      onContextMenu={(e: React.MouseEvent) => onContextMenu(e, project)}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       whileDrag={{
@@ -87,6 +92,8 @@ export default function Sidebar({
   onAddFolder,
   onReorder,
   onResize,
+  onProjectContextMenu,
+  onBackgroundContextMenu,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
   const draggingRef = useRef(false);
@@ -130,7 +137,7 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="sidebar" style={{ width }}>
+    <aside className="sidebar" style={{ width }} onContextMenu={onBackgroundContextMenu}>
       <div className="sidebar-actions">
         <Button
           size="md"
@@ -175,6 +182,7 @@ export default function Sidebar({
                   onSelect={onSelectProject}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  onContextMenu={onProjectContextMenu}
                 />
               );
             })}

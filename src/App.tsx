@@ -18,6 +18,7 @@ import {
 } from "@heroui/react";
 import {
   Check,
+  Copy,
   ExternalLink,
   FolderOpen,
   Minus,
@@ -25,13 +26,16 @@ import {
   PanelLeftOpen,
   Pencil,
   Play,
+  Plus,
   RotateCw,
+  ScrollText,
   Settings,
   Square,
   Trash2,
   X,
 } from "lucide-react";
 import BotPanel from "./BotPanel";
+import ContextMenu, { type MenuItem, type MenuState } from "./ContextMenu";
 import Dashboard from "./Dashboard";
 import LogView from "./LogView";
 import EnvEditor from "./EnvEditor";
@@ -103,6 +107,7 @@ function App() {
   const [fileServerAsk, setFileServerAsk] = useState<ProjectInfo | null>(null);
   const [detailHeaderHeight, setDetailHeaderHeight] = useState(getSetting("detailHeaderHeight"));
   const detailHeadRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -271,6 +276,54 @@ function App() {
     seedLogs(id);
   };
 
+  // Custom right-click menus; suppress the native one everywhere.
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener("contextmenu", onCtx);
+    return () => document.removeEventListener("contextmenu", onCtx);
+  }, []);
+
+  const openMenu = (e: React.MouseEvent, items: MenuItem[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, items });
+  };
+
+  const projectMenuItems = (p: ProjectInfo): MenuItem[] => {
+    const st = statuses[p.id];
+    const isRunning = !!st?.running;
+    const url =
+      st?.url ??
+      (isRunning && p.defaultPort && p.kind === "web-app"
+        ? `http://localhost:${p.defaultPort}`
+        : null);
+    const canStart = !!p.startCommand || p.kind === "static-site" || p.kind === "unknown";
+    return [
+      isRunning
+        ? { key: "stop", label: "Stop", icon: <Square size={14} />, onClick: () => call("stop_project", { id: p.id }) }
+        : { key: "start", label: "Start", icon: <Play size={14} />, disabled: !canStart, onClick: () => start(p) },
+      ...(isRunning
+        ? [{ key: "restart", label: "Restart", icon: <RotateCw size={14} />, onClick: () => call("restart_project", { id: p.id }) }]
+        : []),
+      { key: "open", label: "Open & view logs", icon: <ScrollText size={14} />, onClick: () => { selectProject(p.id); setTab("logs"); } },
+      ...(url
+        ? [{ key: "browser", label: "Open in browser", icon: <ExternalLink size={14} />, onClick: () => openUrl(url) }]
+        : []),
+      { key: "folder", label: "Open folder", icon: <FolderOpen size={14} />, onClick: () => invoke("open_folder", { path: p.path }) },
+      { key: "copy", label: "Copy path", icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(p.path) },
+      { key: "d1", divider: true },
+      { key: "remove", label: "Remove from FoldDeck", icon: <Trash2 size={14} />, danger: true, onClick: () => remove(p.id) },
+    ];
+  };
+
+  const projectContextMenu = (e: React.MouseEvent, p: ProjectInfo) => openMenu(e, projectMenuItems(p));
+  const generalContextMenu = (e: React.MouseEvent) =>
+    openMenu(e, [{ key: "add", label: "Add folder", icon: <Plus size={14} />, onClick: addFolder }]);
+  const logsContextMenu = (e: React.MouseEvent, id: string) =>
+    openMenu(e, [
+      { key: "copy", label: "Copy all logs", icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText((logs[id] ?? []).join("\n")) },
+    ]);
+
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;
     setSidebarCollapsed(next);
@@ -384,6 +437,8 @@ function App() {
             onAddFolder={addFolder}
             onReorder={reorderProjects}
             onResize={changeSidebarWidth}
+            onProjectContextMenu={projectContextMenu}
+            onBackgroundContextMenu={generalContextMenu}
           />
         )}
 
@@ -396,6 +451,8 @@ function App() {
               onStart={start}
               onStop={(id) => call("stop_project", { id })}
               onChanged={refreshProjects}
+              onProjectContextMenu={projectContextMenu}
+              onBackgroundContextMenu={generalContextMenu}
             />
           ) : (
             <>
@@ -624,7 +681,11 @@ function App() {
 
               <div className="tab-content">
                 {activeTab === "logs" && (
-                  <div className="terminal" ref={terminalRef}>
+                  <div
+                    className="terminal"
+                    ref={terminalRef}
+                    onContextMenu={(e) => logsContextMenu(e, selected.id)}
+                  >
                     <LogView lines={logs[selected.id] ?? []} />
                   </div>
                 )}
@@ -737,6 +798,8 @@ function App() {
           )}
         </ModalContent>
       </Modal>
+
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
 
       {dragging && <div className="drop-overlay">Drop folder to add</div>}
     </div>
