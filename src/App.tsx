@@ -6,9 +6,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  Check,
   ExternalLink,
   FolderOpen,
+  LayoutDashboard,
   Minus,
+  Pencil,
   Play,
   Plus,
   RotateCw,
@@ -18,12 +21,13 @@ import {
   X,
 } from "lucide-react";
 import BotPanel from "./BotPanel";
+import Dashboard from "./Dashboard";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
 import SettingsPage from "./SettingsPage";
 import { confirmCommandAudit } from "./audit";
-import { getSetting } from "./settings";
+import { applyUiZoom, getSetting } from "./settings";
 import "./App.css";
 
 const appWindow = getCurrentWindow();
@@ -75,6 +79,8 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("logs");
   const [view, setView] = useState<"main" | "settings">("main");
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -112,6 +118,7 @@ function App() {
   );
 
   useEffect(() => {
+    applyUiZoom();
     refreshAll();
     const unlisteners = [
       listen<{ id: string; line: string }>("project-log", (e) => {
@@ -149,8 +156,8 @@ function App() {
   const selected = projects.find((p) => p.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!selected && projects.length > 0) setSelectedId(projects[0].id);
-  }, [projects, selected]);
+    setRenaming(false);
+  }, [selectedId]);
 
   const addFolder = async () => {
     const picked = await open({ directory: true, multiple: true });
@@ -263,7 +270,7 @@ function App() {
       </header>
 
       {view === "settings" ? (
-        <SettingsPage onClose={() => setView("main")} />
+        <SettingsPage />
       ) : (
         <>
       {error && (
@@ -281,6 +288,13 @@ function App() {
             <button className="btn btn-primary" onClick={addFolder}>
               <Plus size={13} /> Add folder
             </button>
+          </div>
+          <div
+            className={`row row-nav ${selectedId === null ? "row-selected" : ""}`}
+            onClick={() => setSelectedId(null)}
+          >
+            <LayoutDashboard size={13} />
+            <span className="row-name">Dashboard</span>
           </div>
           {projects.length === 0 && (
             <div className="sidebar-empty">
@@ -309,12 +323,68 @@ function App() {
 
         <main className="detail">
           {!selected ? (
-            <div className="detail-empty">Select a project.</div>
+            <Dashboard
+              projects={projects}
+              statuses={statuses}
+              onSelect={selectProject}
+              onStart={start}
+              onStop={(id) => call("stop_project", { id })}
+              onChanged={refreshProjects}
+            />
           ) : (
             <>
               <div className="detail-head">
                 <div className="detail-title">
-                  <span className="detail-name">{selected.name}</span>
+                  {renaming ? (
+                    <>
+                      <input
+                        className="rename-input"
+                        value={nameDraft}
+                        autoFocus
+                        placeholder="Display name (empty = folder name)"
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === "Enter") {
+                            await invoke("set_project_name", {
+                              id: selected.id,
+                              name: nameDraft.trim() || null,
+                            });
+                            setRenaming(false);
+                            await refreshProjects();
+                          }
+                          if (e.key === "Escape") setRenaming(false);
+                        }}
+                      />
+                      <button
+                        className="btn btn-ghost"
+                        title="Save"
+                        onClick={async () => {
+                          await invoke("set_project_name", {
+                            id: selected.id,
+                            name: nameDraft.trim() || null,
+                          });
+                          setRenaming(false);
+                          await refreshProjects();
+                        }}
+                      >
+                        <Check size={13} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="detail-name">{selected.name}</span>
+                      <button
+                        className="btn btn-ghost"
+                        title="Rename"
+                        onClick={() => {
+                          setNameDraft(selected.name);
+                          setRenaming(true);
+                        }}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    </>
+                  )}
                   <span className="tag">{selected.framework ?? selected.kind}</span>
                   {selected.subtype === "discord" && <span className="tag">discord bot</span>}
                   {selected.runtime && <span className="tag tag-dim">{selected.runtime}</span>}

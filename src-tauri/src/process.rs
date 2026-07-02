@@ -134,7 +134,13 @@ struct LogEvent {
 }
 
 impl ProcessManager {
-    pub fn start(&self, app: &AppHandle, project: &ProjectInfo, command: &str) -> Result<(), String> {
+    pub fn start(
+        &self,
+        app: &AppHandle,
+        project: &ProjectInfo,
+        command: &str,
+        extra_env: &[(String, String)],
+    ) -> Result<(), String> {
         let command = command.to_string();
         let mut projects = self.projects.lock().unwrap();
         let runtime = projects.entry(project.id.clone()).or_default();
@@ -148,6 +154,9 @@ impl ProcessManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null());
+        for (k, v) in extra_env {
+            cmd.env(k, v);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;

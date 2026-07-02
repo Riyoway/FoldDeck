@@ -16,8 +16,12 @@ use tauri::Manager;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredProject {
     path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     start_command: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    port: Option<u16>,
 }
 
 pub struct AppState {
@@ -40,7 +44,7 @@ fn load_store(store: &Path) -> Vec<StoredProject> {
         .map(|paths| {
             paths
                 .into_iter()
-                .map(|path| StoredProject { path, start_command: None })
+                .map(|path| StoredProject { path, start_command: None, name: None, port: None })
                 .collect()
         })
         .unwrap_or_default()
@@ -70,6 +74,12 @@ fn project_info_with(stored: &StoredProject, recipes: &[recipes::Recipe]) -> Pro
     }
     if let Some(cmd) = &stored.start_command {
         info.start_command = Some(cmd.clone());
+    }
+    if let Some(name) = &stored.name {
+        info.name = name.clone();
+    }
+    if stored.port.is_some() {
+        info.default_port = stored.port;
     }
     if let (Some(cmd), Some(pm)) = (&info.start_command, &info.package_manager) {
         let first = cmd.split_whitespace().next().unwrap_or("");
@@ -101,7 +111,7 @@ fn add_project(path: String, state: tauri::State<AppState>) -> Result<ProjectInf
     let id = project_id(&path);
     let mut projects = state.projects.lock().unwrap();
     if !projects.iter().any(|p| project_id(&p.path) == id) {
-        projects.push(StoredProject { path: path.clone(), start_command: None });
+        projects.push(StoredProject { path: path.clone(), start_command: None, name: None, port: None });
         save_store(&state.store_path, &projects);
     }
     Ok(detect(&path))
@@ -115,20 +125,88 @@ fn remove_project(id: String, state: tauri::State<AppState>) {
     save_store(&state.store_path, &projects);
 }
 
-#[tauri::command]
-fn set_start_command(
-    id: String,
-    command: Option<String>,
-    state: tauri::State<AppState>,
+fn update_stored(
+    state: &tauri::State<AppState>,
+    id: &str,
+    f: impl FnOnce(&mut StoredProject),
 ) -> Result<(), String> {
     let mut projects = state.projects.lock().unwrap();
     let stored = projects
         .iter_mut()
         .find(|p| project_id(&p.path) == id)
         .ok_or("Unknown project.")?;
-    stored.start_command = command.filter(|c| !c.trim().is_empty());
+    f(stored);
     save_store(&state.store_path, &projects);
     Ok(())
+}
+
+#[tauri::command]
+fn set_start_command(
+    id: String,
+    command: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    update_stored(&state, &id, |p| {
+        p.start_command = command.filter(|c| !c.trim().is_empty());
+    })
+}
+
+#[tauri::command]
+fn set_project_name(
+    id: String,
+    name: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    update_stored(&state, &id, |p| {
+        p.name = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+    })
+}
+
+#[tauri::command]
+fn set_project_port(
+    id: String,
+    port: Option<u16>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    update_stored(&state, &id, |p| p.port = port)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PortInfo {
+    port: u16,
+    project_id: String,
+    project_name: String,
+    running: bool,
+    busy: bool,
+    overridden: bool,
+}
+
+#[tauri::command]
+fn get_ports_overview(state: tauri::State<AppState>) -> Vec<PortInfo> {
+    let stored: Vec<StoredProject> = state.projects.lock().unwrap().clone();
+    stored
+        .iter()
+        .filter_map(|sp| {
+            let info = project_info(&state, sp);
+            let status = state.manager.status(&info.id);
+            // Prefer the live port parsed from the detected URL while running.
+            let live_port = status.url.as_deref().and_then(|u| {
+                u.rsplit(':').next().and_then(|p| p.parse::<u16>().ok())
+            });
+            let port = live_port.or(info.default_port)?;
+            let busy = status.running
+                || std::net::TcpListener::bind(("127.0.0.1", port)).is_err();
+            Some(PortInfo {
+                port,
+                project_id: info.id,
+                project_name: info.name,
+                running: status.running,
+                busy,
+                overridden: sp.port.is_some(),
+            })
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -137,7 +215,8 @@ fn start_project(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = project_info(&state, &find_stored(&state, &id)?);
+    let stored = find_stored(&state, &id)?;
+    let info = project_info(&state, &stored);
     if info.kind == "static-site" && info.start_command.is_none() {
         return state.manager.start_static(&app, &info);
     }
@@ -145,7 +224,12 @@ fn start_project(
         .start_command
         .clone()
         .ok_or("No start command detected for this project.")?;
-    state.manager.start(&app, &info, &cmd)
+    // ponytail: PORT env covers Next/Express/most Node servers; Vite needs --port.
+    let envs: Vec<(String, String)> = stored
+        .port
+        .map(|p| vec![("PORT".to_string(), p.to_string())])
+        .unwrap_or_default();
+    state.manager.start(&app, &info, &cmd, &envs)
 }
 
 #[tauri::command]
@@ -204,7 +288,7 @@ fn run_project_command(
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     let info = project_info(&state, &find_stored(&state, &id)?);
-    state.manager.start(&app, &info, &command)
+    state.manager.start(&app, &info, &command, &[])
 }
 
 #[tauri::command]
@@ -222,7 +306,7 @@ fn install_dependencies(
         Some("uv") => "uv sync".into(),
         _ => return Err("No package manager detected.".into()),
     };
-    state.manager.start(&app, &info, &cmd)
+    state.manager.start(&app, &info, &cmd, &[])
 }
 
 #[tauri::command]
@@ -241,7 +325,7 @@ fn reinstall_dependencies(
         // Lockfiles are kept; only node_modules is removed.
         cmd = format!("rmdir /s /q node_modules && {}", cmd);
     }
-    state.manager.start(&app, &info, &cmd)
+    state.manager.start(&app, &info, &cmd, &[])
 }
 
 #[tauri::command]
@@ -333,6 +417,9 @@ pub fn run() {
             add_project,
             remove_project,
             set_start_command,
+            set_project_name,
+            set_project_port,
+            get_ports_overview,
             start_project,
             stop_project,
             restart_project,

@@ -3,12 +3,19 @@ const KEY = "folddeck-settings";
 type Settings = {
   commandAuditConfirm: boolean;
   logAutoScroll: boolean;
+  uiZoom: number;
 };
 
 const DEFAULTS: Settings = {
   commandAuditConfirm: true,
   logAutoScroll: true,
+  uiZoom: 1,
 };
+
+/** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */
+export function applyUiZoom(): void {
+  (document.body.style as CSSStyleDeclaration & { zoom: string }).zoom = String(getSetting("uiZoom"));
+}
 
 function load(): Settings {
   try {
