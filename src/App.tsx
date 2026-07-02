@@ -366,7 +366,7 @@ function App() {
       {error && (
         <div className="error-bar">
           <span>{error}</span>
-          <Button isIconOnly size="sm" variant="light" className="ml-auto" aria-label="Dismiss error" onPress={() => setError(null)}>
+          <Button isIconOnly size="md" variant="light" className="ml-auto" aria-label="Dismiss error" onPress={() => setError(null)}>
             <X size={14} />
           </Button>
         </div>
@@ -412,7 +412,7 @@ function App() {
                   {renaming ? (
                     <>
                       <Input
-                        size="sm"
+                        size="md"
                         variant="bordered"
                         className="rename-input"
                         value={nameDraft}
@@ -433,7 +433,7 @@ function App() {
                       />
                       <Button
                         isIconOnly
-                        size="sm"
+                        size="md"
                         variant="light"
                         aria-label="Save name"
                         onPress={async () => {
@@ -452,10 +452,10 @@ function App() {
                     <>
                       <ProjectIcon project={selected} size={18} />
                       <span className="detail-name">{selected.name}</span>
-                      <Tooltip content="Rename" size="sm">
+                      <Tooltip content="Rename" size="md">
                         <Button
                           isIconOnly
-                          size="sm"
+                          size="md"
                           variant="light"
                           aria-label="Rename"
                           onPress={() => {
@@ -468,21 +468,21 @@ function App() {
                       </Tooltip>
                     </>
                   )}
-                  <Chip size="sm" variant="flat">
+                  <Chip size="md" variant="flat">
                     {selected.framework ?? selected.kind}
                   </Chip>
                   {selected.subtype === "discord" && (
-                    <Chip size="sm" variant="flat">
+                    <Chip size="md" variant="flat">
                       discord bot
                     </Chip>
                   )}
                   {selected.runtime && (
-                    <Chip size="sm" variant="flat" className="chip-dim">
+                    <Chip size="md" variant="flat" className="chip-dim">
                       {selected.runtime}
                     </Chip>
                   )}
                   {selected.packageManager && (
-                    <Chip size="sm" variant="flat" className="chip-dim">
+                    <Chip size="md" variant="flat" className="chip-dim">
                       {selected.packageManager}
                     </Chip>
                   )}
@@ -541,7 +541,7 @@ function App() {
                   {isRunning ? (
                     <>
                       <Button
-                        size="sm"
+                        size="md"
                         color="danger"
                         variant="flat"
                         startContent={<Square size={14} />}
@@ -550,7 +550,7 @@ function App() {
                         Stop
                       </Button>
                       <Button
-                        size="sm"
+                        size="md"
                         variant="flat"
                         startContent={<RotateCw size={14} />}
                         onPress={() => call("restart_project", { id: selected.id })}
@@ -560,7 +560,7 @@ function App() {
                     </>
                   ) : (
                     <Button
-                      size="sm"
+                      size="md"
                       color="primary"
                       variant="flat"
                       startContent={<Play size={14} />}
@@ -576,7 +576,7 @@ function App() {
                   )}
                   {url && (
                     <Button
-                      size="sm"
+                      size="md"
                       variant="flat"
                       startContent={<ExternalLink size={14} />}
                       onPress={() => openUrl(url)}
@@ -585,16 +585,16 @@ function App() {
                     </Button>
                   )}
                   <Button
-                    size="sm"
+                    size="md"
                     variant="flat"
                     startContent={<FolderOpen size={14} />}
                     onPress={() => invoke("open_folder", { path: selected.path })}
                   >
                     Folder
                   </Button>
-                  <Tooltip content="Remove from FoldDeck (files are kept)" size="sm">
+                  <Tooltip content="Remove from FoldDeck (files are kept)" size="md">
                     <Button
-                      size="sm"
+                      size="md"
                       variant="light"
                       className="ml-auto"
                       startContent={<Trash2 size={14} />}

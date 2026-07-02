@@ -62,15 +62,9 @@ module.exports = {
           },
           layout: {
             radius: {
-              small: "4px",
-              medium: "6px",
-              large: "8px",
-            },
-            fontSize: {
-              tiny: "0.72rem",
-              small: "0.8rem",
-              medium: "0.9rem",
-              large: "1.05rem",
+              small: "6px",
+              medium: "8px",
+              large: "10px",
             },
           },
         },

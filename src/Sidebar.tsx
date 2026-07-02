@@ -104,7 +104,7 @@ export default function Sidebar({
       <div className="sidebar-actions">
         <Button
           color="primary"
-          size="sm"
+          size="md"
           fullWidth
           startContent={<Plus size={14} />}
           onPress={onAddFolder}

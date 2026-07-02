@@ -85,7 +85,7 @@ export default function BotPanel({ project, status, logs }: Props) {
       </div>
       <div className="bot-actions">
         <Button
-          size="sm"
+          size="md"
           variant="flat"
           startContent={<ExternalLink size={14} />}
           onPress={() => openUrl("https://discord.com/developers/applications")}
@@ -93,7 +93,7 @@ export default function BotPanel({ project, status, logs }: Props) {
           Developer Portal
         </Button>
         <Button
-          size="sm"
+          size="md"
           variant="flat"
           isDisabled={!inviteUrl}
           startContent={copied ? <Check size={14} /> : <Copy size={14} />}

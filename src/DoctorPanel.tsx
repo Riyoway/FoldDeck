@@ -48,7 +48,7 @@ export default function DoctorPanel({ projectId }: { projectId: string }) {
             </>
           )}
         </span>
-        <Button size="sm" variant="flat" startContent={<RotateCcw size={14} />} onPress={run}>
+        <Button size="md" variant="flat" startContent={<RotateCcw size={14} />} onPress={run}>
           Re-run
         </Button>
       </div>

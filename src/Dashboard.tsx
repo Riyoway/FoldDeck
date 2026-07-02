@@ -135,7 +135,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                   <div className="proj-card-actions" onClick={(e) => e.stopPropagation()}>
                     {isRunning ? (
                       <Button
-                        size="sm"
+                        size="md"
                         color="danger"
                         variant="flat"
                         startContent={<Square size={14} />}
@@ -145,7 +145,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                       </Button>
                     ) : (
                       <Button
-                        size="sm"
+                        size="md"
                         color="primary"
                         variant="flat"
                         isDisabled={!canStart}
@@ -157,7 +157,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                     )}
                     {url && (
                       <Button
-                        size="sm"
+                        size="md"
                         variant="flat"
                         startContent={<ExternalLink size={14} />}
                         onPress={() => openUrl(url)}
@@ -194,7 +194,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                         {editing ? (
                           <span onClick={(e) => e.stopPropagation()}>
                             <Input
-                              size="sm"
+                              size="md"
                               variant="bordered"
                               className="port-input-hero"
                               value={portDraft}
@@ -211,7 +211,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                           <>
                             :{p.port}
                             {p.overridden && (
-                              <Chip size="sm" variant="flat" className="port-tag">
+                              <Chip size="md" variant="flat" className="port-tag">
                                 custom
                               </Chip>
                             )}
@@ -233,18 +233,18 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                       <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                         {editing ? (
                           <>
-                            <Button isIconOnly size="sm" variant="light" aria-label="Save" onPress={() => savePort(p.projectId)}>
+                            <Button isIconOnly size="md" variant="light" aria-label="Save" onPress={() => savePort(p.projectId)}>
                               <Check size={14} />
                             </Button>
-                            <Button isIconOnly size="sm" variant="light" aria-label="Cancel" onPress={() => setEditingPort(null)}>
+                            <Button isIconOnly size="md" variant="light" aria-label="Cancel" onPress={() => setEditingPort(null)}>
                               <X size={14} />
                             </Button>
                           </>
                         ) : (
-                          <Tooltip content="Override port (sets PORT on start; clear for auto)" size="sm">
+                          <Tooltip content="Override port (sets PORT on start; clear for auto)" size="md">
                             <Button
                               isIconOnly
-                              size="sm"
+                              size="md"
                               variant="light"
                               aria-label="Edit port"
                               onPress={() => {

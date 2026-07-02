@@ -128,7 +128,7 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
           </button>
         ))}
         {!hasEnv && hasExample && (
-          <Button size="sm" variant="flat" startContent={<FilePlus2 size={14} />} onPress={createFromExample}>
+          <Button size="md" variant="flat" startContent={<FilePlus2 size={14} />} onPress={createFromExample}>
             Create .env from example
           </Button>
         )}
@@ -150,7 +150,7 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
       {missingKeys.length > 0 && (
         <div className="env-missing">
           ⚠ Missing keys from example: {missingKeys.join(", ")}
-          <Button size="sm" variant="flat" startContent={<Plus size={14} />} onPress={addMissingKeys}>
+          <Button size="md" variant="flat" startContent={<Plus size={14} />} onPress={addMissingKeys}>
             Add them
           </Button>
         </div>
@@ -176,12 +176,12 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
             />
             {e.isSecret && (
               <>
-                <Chip size="sm" variant="flat" className="chip-warn">
+                <Chip size="md" variant="flat" className="chip-warn">
                   secret
                 </Chip>
                 <Button
                   isIconOnly
-                  size="sm"
+                  size="md"
                   variant="light"
                   aria-label={visible.has(i) ? "Hide value" : "Show value"}
                   onPress={() =>
@@ -198,7 +198,7 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
             )}
             <Button
               isIconOnly
-              size="sm"
+              size="md"
               variant="light"
               aria-label="Remove variable"
               onPress={() => {
@@ -215,7 +215,7 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
 
       <div className="env-foot">
         <Button
-          size="sm"
+          size="md"
           variant="flat"
           startContent={<Plus size={14} />}
           onPress={() => {
@@ -228,10 +228,10 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
         <span className="dim" style={{ marginLeft: "auto" }}>
           {saved ? "saved" : dirty ? "unsaved changes" : ""}
         </span>
-        <Button size="sm" variant="flat" startContent={<RotateCcw size={14} />} onPress={() => load(activeFile)}>
+        <Button size="md" variant="flat" startContent={<RotateCcw size={14} />} onPress={() => load(activeFile)}>
           Reload
         </Button>
-        <Button size="sm" color="primary" variant="flat" isDisabled={!dirty} startContent={<Save size={14} />} onPress={save}>
+        <Button size="md" color="primary" variant="flat" isDisabled={!dirty} startContent={<Save size={14} />} onPress={save}>
           Save
         </Button>
       </div>

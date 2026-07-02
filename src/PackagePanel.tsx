@@ -99,7 +99,7 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
 
       <div className="pkg-actions">
         <Button
-          size="sm"
+          size="md"
           variant="flat"
           startContent={<Download size={14} />}
           onPress={() => call("install_dependencies", { id: project.id })}
@@ -107,13 +107,13 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
           Install
         </Button>
         {isNode && (
-          <Button size="sm" variant="flat" startContent={<RefreshCcw size={14} />} onPress={reinstall}>
+          <Button size="md" variant="flat" startContent={<RefreshCcw size={14} />} onPress={reinstall}>
             Reinstall
           </Button>
         )}
-        <Tooltip content={`Run ${rawAuditCommand}`} size="sm">
+        <Tooltip content={`Run ${rawAuditCommand}`} size="md">
           <Button
-            size="sm"
+            size="md"
             variant="flat"
             isLoading={auditing}
             startContent={!auditing && <ShieldAlert size={14} />}
@@ -161,15 +161,15 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
                 <td className="pkg-script-name">{name}</td>
                 <td className="pkg-script-cmd">{cmd}</td>
                 <td className="pkg-script-btns">
-                  <Tooltip content={`Run ${runCommand(pm, name)}`} size="sm">
-                    <Button isIconOnly size="sm" variant="light" aria-label="Run script" onPress={() => runScript(name)}>
+                  <Tooltip content={`Run ${runCommand(pm, name)}`} size="md">
+                    <Button isIconOnly size="md" variant="light" aria-label="Run script" onPress={() => runScript(name)}>
                       <Play size={14} />
                     </Button>
                   </Tooltip>
-                  <Tooltip content="Set as start command" size="sm">
+                  <Tooltip content="Set as start command" size="md">
                     <Button
                       isIconOnly
-                      size="sm"
+                      size="md"
                       variant="light"
                       aria-label="Set as start command"
                       onPress={async () => {

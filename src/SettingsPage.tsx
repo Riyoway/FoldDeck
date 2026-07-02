@@ -48,12 +48,15 @@ function SettingToggle({
         <div className="settings-desc">{description}</div>
       </div>
       <Switch
-        size="sm"
-        color="primary"
+        size="lg"
         isSelected={on}
         onValueChange={(v) => {
           setSetting(settingKey, v);
           setOn(v);
+        }}
+        classNames={{
+          wrapper: "bg-default-300 group-data-[selected=true]:!bg-default-500",
+          thumb: "bg-white",
         }}
         aria-label={label}
       />
@@ -109,7 +112,7 @@ export default function SettingsPage() {
                 <div className="settings-desc">Scales the entire interface.</div>
               </div>
               <Tabs
-                size="sm"
+                size="md"
                 aria-label="Text size"
                 selectedKey={String(zoom)}
                 onSelectionChange={(k) => changeZoom(Number(k))}
@@ -157,7 +160,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <Tabs
-                size="sm"
+                size="md"
                 aria-label="File server default"
                 selectedKey={fileServer}
                 onSelectionChange={(k) => {
@@ -189,7 +192,7 @@ export default function SettingsPage() {
               </div>
               <div className="settings-btns">
                 <Button
-                  size="sm"
+                  size="md"
                   variant="flat"
                   startContent={<FolderOpen size={14} />}
                   onPress={() => paths && invoke("open_folder", { path: paths.recipes })}
@@ -197,7 +200,7 @@ export default function SettingsPage() {
                   Open folder
                 </Button>
                 <Button
-                  size="sm"
+                  size="md"
                   variant="flat"
                   startContent={<RotateCcw size={14} />}
                   onPress={reloadRecipes}
@@ -220,7 +223,7 @@ export default function SettingsPage() {
               </div>
               <div className="settings-btns">
                 <Button
-                  size="sm"
+                  size="md"
                   variant="flat"
                   startContent={<FolderOpen size={14} />}
                   onPress={() => paths && invoke("open_folder", { path: paths.appData })}
@@ -243,7 +246,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="settings-btns">
-                <Button size="sm" variant="flat" onPress={() => openUrl("https://github.com/Riyoway/FoldDeck")}>
+                <Button size="md" variant="flat" onPress={() => openUrl("https://github.com/Riyoway/FoldDeck")}>
                   GitHub
                 </Button>
               </div>

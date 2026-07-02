@@ -425,11 +425,14 @@ body.dragging-row * {
 
 .detail-resize {
   position: relative;
-  height: 7px;
-  margin-top: -1px;
+  height: 9px;
+  /* Straddle the tabbar/content boundary so the grab zone is centered on the
+     line (net layout height 0, like the sidebar handle). */
+  margin-top: -5px;
+  margin-bottom: -4px;
   cursor: row-resize;
   flex-shrink: 0;
-  z-index: 4;
+  z-index: 6;
 }
 
 .detail-resize::after {
@@ -437,8 +440,8 @@ body.dragging-row * {
   position: absolute;
   left: 0;
   right: 0;
-  top: 0;
-  height: 2px;
+  top: 4px;
+  height: 1px;
   background: transparent;
   transition: background 0.12s;
 }
@@ -767,12 +770,12 @@ body.resizing-v {
 .env-row input {
   background: var(--bg-deep);
   border: 1px solid var(--border-2);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text);
-  padding: 5px 10px;
+  padding: 6px 11px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  height: 30px;
+  font-size: 13px;
+  height: 40px;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
