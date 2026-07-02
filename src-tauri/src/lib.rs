@@ -5,32 +5,85 @@ mod process;
 use detect::{detect, project_id, ProjectInfo};
 use env_file::EnvEntry;
 use process::{ProcessManager, ProjectStatus};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Manager;
 
-pub struct AppState {
-    pub manager: ProcessManager,
-    pub paths: Mutex<Vec<String>>,
-    pub store_path: PathBuf,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredProject {
+    path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_command: Option<String>,
 }
 
-fn load_paths(store: &Path) -> Vec<String> {
-    std::fs::read_to_string(store)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+pub struct AppState {
+    pub manager: ProcessManager,
+    projects: Mutex<Vec<StoredProject>>,
+    store_path: PathBuf,
+}
+
+fn load_store(store: &Path) -> Vec<StoredProject> {
+    let Ok(raw) = std::fs::read_to_string(store) else {
+        return Vec::new();
+    };
+    if let Ok(v) = serde_json::from_str::<Vec<StoredProject>>(&raw) {
+        return v;
+    }
+    // Legacy format: plain array of path strings.
+    serde_json::from_str::<Vec<String>>(&raw)
+        .map(|paths| {
+            paths
+                .into_iter()
+                .map(|path| StoredProject { path, start_command: None })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
-fn save_paths(store: &Path, paths: &[String]) {
-    if let Ok(json) = serde_json::to_string_pretty(paths) {
+fn save_store(store: &Path, projects: &[StoredProject]) {
+    if let Ok(json) = serde_json::to_string_pretty(projects) {
         let _ = std::fs::write(store, json);
     }
 }
 
+fn find_stored(state: &tauri::State<AppState>, id: &str) -> Result<StoredProject, String> {
+    state
+        .projects
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|p| project_id(&p.path) == id)
+        .cloned()
+        .ok_or_else(|| "Unknown project.".into())
+}
+
+fn project_info(stored: &StoredProject) -> ProjectInfo {
+    let mut info = detect(&stored.path);
+    if let Some(cmd) = &stored.start_command {
+        info.start_command = Some(cmd.clone());
+    }
+    if let (Some(cmd), Some(pm)) = (&info.start_command, &info.package_manager) {
+        let first = cmd.split_whitespace().next().unwrap_or("");
+        if ["npm", "pnpm", "yarn", "bun"].contains(&first) && first != pm {
+            info.warnings.push(format!(
+                "Start command uses {} but the lockfile suggests {}.",
+                first, pm
+            ));
+        }
+    }
+    info
+}
+
 #[tauri::command]
 fn list_projects(state: tauri::State<AppState>) -> Vec<ProjectInfo> {
-    state.paths.lock().unwrap().iter().map(|p| detect(p)).collect()
+    state
+        .projects
+        .lock()
+        .unwrap()
+        .iter()
+        .map(project_info)
+        .collect()
 }
 
 #[tauri::command]
@@ -38,32 +91,37 @@ fn add_project(path: String, state: tauri::State<AppState>) -> Result<ProjectInf
     if !Path::new(&path).is_dir() {
         return Err(format!("Not a folder: {}", path));
     }
-    let info = detect(&path);
-    let mut paths = state.paths.lock().unwrap();
-    if !paths.iter().any(|p| project_id(p) == info.id) {
-        paths.push(path);
-        save_paths(&state.store_path, &paths);
+    let id = project_id(&path);
+    let mut projects = state.projects.lock().unwrap();
+    if !projects.iter().any(|p| project_id(&p.path) == id) {
+        projects.push(StoredProject { path: path.clone(), start_command: None });
+        save_store(&state.store_path, &projects);
     }
-    Ok(info)
+    Ok(detect(&path))
 }
 
 #[tauri::command]
 fn remove_project(id: String, state: tauri::State<AppState>) {
     let _ = state.manager.stop(&id);
-    let mut paths = state.paths.lock().unwrap();
-    paths.retain(|p| project_id(p) != id);
-    save_paths(&state.store_path, &paths);
+    let mut projects = state.projects.lock().unwrap();
+    projects.retain(|p| project_id(&p.path) != id);
+    save_store(&state.store_path, &projects);
 }
 
-fn find_path(state: &tauri::State<AppState>, id: &str) -> Result<String, String> {
-    state
-        .paths
-        .lock()
-        .unwrap()
-        .iter()
-        .find(|p| project_id(p) == id)
-        .cloned()
-        .ok_or_else(|| "Unknown project.".into())
+#[tauri::command]
+fn set_start_command(
+    id: String,
+    command: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let mut projects = state.projects.lock().unwrap();
+    let stored = projects
+        .iter_mut()
+        .find(|p| project_id(&p.path) == id)
+        .ok_or("Unknown project.")?;
+    stored.start_command = command.filter(|c| !c.trim().is_empty());
+    save_store(&state.store_path, &projects);
+    Ok(())
 }
 
 #[tauri::command]
@@ -72,39 +130,85 @@ fn start_project(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = detect(&find_path(&state, &id)?);
-    state.manager.start(&app, &info)
-}
-
-#[tauri::command]
-fn read_env_file(
-    id: String,
-    file_name: String,
-    state: tauri::State<AppState>,
-) -> Result<Vec<EnvEntry>, String> {
-    let dir = find_path(&state, &id)?;
-    env_file::read_entries(&env_file::env_path(&dir, &file_name)?)
-}
-
-#[tauri::command]
-fn save_env_file(
-    id: String,
-    file_name: String,
-    entries: Vec<EnvEntry>,
-    state: tauri::State<AppState>,
-) -> Result<(), String> {
-    let dir = find_path(&state, &id)?;
-    env_file::save_entries(&env_file::env_path(&dir, &file_name)?, &entries)
-}
-
-#[tauri::command]
-fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<(), String> {
-    env_file::create_from_example(&find_path(&state, &id)?)
+    let info = project_info(&find_stored(&state, &id)?);
+    let cmd = info
+        .start_command
+        .clone()
+        .ok_or("No start command detected for this project.")?;
+    state.manager.start(&app, &info, &cmd)
 }
 
 #[tauri::command]
 fn stop_project(id: String, state: tauri::State<AppState>) -> Result<(), String> {
     state.manager.stop(&id)
+}
+
+#[tauri::command]
+fn restart_project(
+    id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    if state.manager.status(&id).running {
+        state.manager.stop(&id)?;
+        for _ in 0..50 {
+            if !state.manager.status(&id).running {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+    start_project(id, app, state)
+}
+
+/// Runs a one-off command (package script, install) in the project folder,
+/// through the same log/masking pipeline as Start.
+#[tauri::command]
+fn run_project_command(
+    id: String,
+    command: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let info = project_info(&find_stored(&state, &id)?);
+    state.manager.start(&app, &info, &command)
+}
+
+#[tauri::command]
+fn install_dependencies(
+    id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let info = project_info(&find_stored(&state, &id)?);
+    let cmd = match info.package_manager.as_deref() {
+        Some("npm") | Some("pnpm") | Some("yarn") | Some("bun") => {
+            format!("{} install", info.package_manager.as_deref().unwrap())
+        }
+        Some("pip") => "pip install -r requirements.txt".into(),
+        Some("uv") => "uv sync".into(),
+        _ => return Err("No package manager detected.".into()),
+    };
+    state.manager.start(&app, &info, &cmd)
+}
+
+#[tauri::command]
+fn reinstall_dependencies(
+    id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let info = project_info(&find_stored(&state, &id)?);
+    let pm = match info.package_manager.as_deref() {
+        Some(pm @ ("npm" | "pnpm" | "yarn" | "bun")) => pm,
+        _ => return Err("Reinstall is only supported for Node.js projects.".into()),
+    };
+    let mut cmd = format!("{} install", pm);
+    if Path::new(&info.path).join("node_modules").exists() {
+        // Lockfiles are kept; only node_modules is removed.
+        cmd = format!("rmdir /s /q node_modules && {}", cmd);
+    }
+    state.manager.start(&app, &info, &cmd)
 }
 
 #[tauri::command]
@@ -115,17 +219,43 @@ fn get_logs(id: String, state: tauri::State<AppState>) -> Vec<String> {
 #[tauri::command]
 fn get_statuses(state: tauri::State<AppState>) -> Vec<ProjectStatus> {
     state
-        .paths
+        .projects
         .lock()
         .unwrap()
         .iter()
-        .map(|p| state.manager.status(&project_id(p)))
+        .map(|p| state.manager.status(&project_id(&p.path)))
         .collect()
 }
 
 #[tauri::command]
 fn open_folder(path: String) -> Result<(), String> {
     tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_env_file(
+    id: String,
+    file_name: String,
+    state: tauri::State<AppState>,
+) -> Result<Vec<EnvEntry>, String> {
+    let stored = find_stored(&state, &id)?;
+    env_file::read_entries(&env_file::env_path(&stored.path, &file_name)?)
+}
+
+#[tauri::command]
+fn save_env_file(
+    id: String,
+    file_name: String,
+    entries: Vec<EnvEntry>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let stored = find_stored(&state, &id)?;
+    env_file::save_entries(&env_file::env_path(&stored.path, &file_name)?, &entries)
+}
+
+#[tauri::command]
+fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<(), String> {
+    env_file::create_from_example(&find_stored(&state, &id)?.path)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -137,10 +267,10 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let store_path = dir.join("projects.json");
-            let paths = load_paths(&store_path);
+            let projects = load_store(&store_path);
             app.manage(AppState {
                 manager: ProcessManager::default(),
-                paths: Mutex::new(paths),
+                projects: Mutex::new(projects),
                 store_path,
             });
             Ok(())
@@ -149,8 +279,13 @@ pub fn run() {
             list_projects,
             add_project,
             remove_project,
+            set_start_command,
             start_project,
             stop_project,
+            restart_project,
+            run_project_command,
+            install_dependencies,
+            reinstall_dependencies,
             get_logs,
             get_statuses,
             open_folder,

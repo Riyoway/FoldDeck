@@ -21,6 +21,7 @@ pub struct ProjectInfo {
     pub scripts: BTreeMap<String, String>,
     pub env_files: Vec<String>,
     pub lockfiles: Vec<String>,
+    pub deps_installed: Option<bool>,
     pub warnings: Vec<String>,
 }
 
@@ -75,6 +76,7 @@ pub fn detect(path: &str) -> ProjectInfo {
             .map(|f| f.to_string())
             .collect(),
         lockfiles: Vec::new(),
+        deps_installed: None,
         warnings: Vec::new(),
     };
 
@@ -225,7 +227,9 @@ fn detect_node(dir: &Path, info: &mut ProjectInfo) -> bool {
     detect_node_package_manager(dir, info);
     info.start_command = node_start_command(dir, info, &pkg);
 
-    if !dir.join("node_modules").is_dir() {
+    let installed = dir.join("node_modules").is_dir();
+    info.deps_installed = Some(installed);
+    if !installed {
         info.warnings
             .push("Dependencies are not installed (node_modules missing).".into());
     }

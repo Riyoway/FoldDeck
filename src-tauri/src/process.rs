@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -23,7 +23,6 @@ pub struct ProjectStatus {
 }
 
 struct RunningProc {
-    child: Arc<Mutex<Child>>,
     pid: u32,
     started_at: u64,
     user_stopped: Arc<AtomicBool>,
@@ -124,12 +123,8 @@ struct LogEvent {
 }
 
 impl ProcessManager {
-    pub fn start(&self, app: &AppHandle, project: &ProjectInfo) -> Result<(), String> {
-        let command = project
-            .start_command
-            .clone()
-            .ok_or("No start command detected for this project.")?;
-
+    pub fn start(&self, app: &AppHandle, project: &ProjectInfo, command: &str) -> Result<(), String> {
+        let command = command.to_string();
         let mut projects = self.projects.lock().unwrap();
         let runtime = projects.entry(project.id.clone()).or_default();
         if runtime.proc.is_some() {
@@ -195,7 +190,6 @@ impl ProcessManager {
         let child = Arc::new(Mutex::new(child));
         let user_stopped = Arc::new(AtomicBool::new(false));
         runtime.proc = Some(RunningProc {
-            child: child.clone(),
             pid,
             started_at: now_secs(),
             user_stopped: user_stopped.clone(),

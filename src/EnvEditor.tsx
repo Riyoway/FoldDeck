@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { AlertTriangle, Eye, EyeOff, FilePlus2, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { Eye, EyeOff, FilePlus2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 
 interface EnvEntry {
   key: string;
@@ -10,18 +10,27 @@ interface EnvEntry {
 
 interface Props {
   projectId: string;
-  projectName: string;
   envFiles: string[];
-  onClose: () => void;
   onChanged: () => void;
 }
 
-const FILE_PRIORITY = [".env", ".env.local", ".env.development", ".env.production", ".env.example", ".env.template", ".env.sample"];
+const FILE_PRIORITY = [
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.production",
+  ".env.example",
+  ".env.template",
+  ".env.sample",
+];
+const EXAMPLE_FILES = [".env.example", ".env.template", ".env.sample"];
+const SECRET_RE =
+  /TOKEN|SECRET|PASSWORD|PASS|API_KEY|PRIVATE_KEY|ACCESS_KEY|AUTH|SESSION|COOKIE|WEBHOOK|DATABASE_URL/i;
 
 const sortFiles = (files: string[]) =>
   [...files].sort((a, b) => FILE_PRIORITY.indexOf(a) - FILE_PRIORITY.indexOf(b));
 
-export default function EnvEditor({ projectId, projectName, envFiles, onClose, onChanged }: Props) {
+export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
   const [files, setFiles] = useState(sortFiles(envFiles));
   const [activeFile, setActiveFile] = useState(sortFiles(envFiles)[0]);
   const [entries, setEntries] = useState<EnvEntry[]>([]);
@@ -31,7 +40,7 @@ export default function EnvEditor({ projectId, projectName, envFiles, onClose, o
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const hasExample = files.some((f) => [".env.example", ".env.template", ".env.sample"].includes(f));
+  const hasExample = files.some((f) => EXAMPLE_FILES.includes(f));
   const hasEnv = files.includes(".env");
 
   const load = useCallback(
@@ -39,12 +48,16 @@ export default function EnvEditor({ projectId, projectName, envFiles, onClose, o
       setError(null);
       setVisible(new Set());
       setDirty(false);
+      setSaved(false);
       try {
         const loaded = await invoke<EnvEntry[]>("read_env_file", { id: projectId, fileName: file });
         setEntries(loaded);
         if (file === ".env" && hasExample) {
-          const exampleFile = files.find((f) => [".env.example", ".env.template", ".env.sample"].includes(f))!;
-          const example = await invoke<EnvEntry[]>("read_env_file", { id: projectId, fileName: exampleFile });
+          const exampleFile = files.find((f) => EXAMPLE_FILES.includes(f))!;
+          const example = await invoke<EnvEntry[]>("read_env_file", {
+            id: projectId,
+            fileName: exampleFile,
+          });
           setMissingKeys(example.map((e) => e.key).filter((k) => !loaded.some((e) => e.key === k)));
         } else {
           setMissingKeys([]);
@@ -95,124 +108,110 @@ export default function EnvEditor({ projectId, projectName, envFiles, onClose, o
   const addMissingKeys = () => {
     setEntries((prev) => [
       ...prev,
-      ...missingKeys.map((k) => ({ key: k, value: "", isSecret: /TOKEN|SECRET|PASSWORD|PASS|API_KEY|PRIVATE_KEY|ACCESS_KEY|AUTH|SESSION|COOKIE|WEBHOOK|DATABASE_URL/i.test(k) })),
+      ...missingKeys.map((k) => ({ key: k, value: "", isSecret: SECRET_RE.test(k) })),
     ]);
     setMissingKeys([]);
     setDirty(true);
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <strong>Environment</strong>
-          <span className="hint">{projectName}</span>
-          <button className="btn btn-ghost" onClick={onClose} style={{ marginLeft: "auto" }}>
-            <X size={15} />
-          </button>
-        </div>
-
-        <div className="env-tabs">
-          {files.map((f) => (
-            <button
-              key={f}
-              className={`env-tab ${f === activeFile ? "env-tab-active" : ""}`}
-              onClick={() => setActiveFile(f)}
-            >
-              {f}
-            </button>
-          ))}
-          {!hasEnv && hasExample && (
-            <button className="btn btn-primary" onClick={createFromExample}>
-              <FilePlus2 size={13} /> Create .env from example
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <div className="error-banner">
-            <AlertTriangle size={14} /> {error}
-          </div>
-        )}
-
-        {missingKeys.length > 0 && (
-          <div className="env-missing">
-            <AlertTriangle size={13} /> Missing keys from example: {missingKeys.join(", ")}
-            <button className="btn" onClick={addMissingKeys}>
-              <Plus size={13} /> Add them
-            </button>
-          </div>
-        )}
-
-        <div className="env-rows">
-          {entries.map((e, i) => (
-            <div className="env-row" key={i}>
-              <input
-                className="env-key"
-                value={e.key}
-                onChange={(ev) => update(i, { key: ev.target.value })}
-                placeholder="KEY"
-                spellCheck={false}
-              />
-              <input
-                className="env-value"
-                type={e.isSecret && !visible.has(i) ? "password" : "text"}
-                value={e.value}
-                onChange={(ev) => update(i, { value: ev.target.value })}
-                placeholder="value"
-                spellCheck={false}
-              />
-              {e.isSecret && (
-                <>
-                  <span className="badge badge-secret">Secret</span>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() =>
-                      setVisible((prev) => {
-                        const next = new Set(prev);
-                        next.has(i) ? next.delete(i) : next.add(i);
-                        return next;
-                      })
-                    }
-                  >
-                    {visible.has(i) ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </>
-              )}
-              <button
-                className="btn btn-ghost"
-                onClick={() => {
-                  setEntries((prev) => prev.filter((_, j) => j !== i));
-                  setDirty(true);
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-          {entries.length === 0 && <p className="hint">No entries.</p>}
-        </div>
-
-        <div className="modal-foot">
+    <div className="env-editor">
+      <div className="env-tabs">
+        {files.map((f) => (
           <button
-            className="btn"
-            onClick={() => {
-              setEntries((prev) => [...prev, { key: "", value: "", isSecret: false }]);
-              setDirty(true);
-            }}
+            key={f}
+            className={`env-tab ${f === activeFile ? "env-tab-active" : ""}`}
+            onClick={() => setActiveFile(f)}
           >
-            <Plus size={14} /> Add variable
+            {f}
           </button>
-          <span style={{ marginLeft: "auto" }} className="hint">
-            {saved ? "Saved." : dirty ? "Unsaved changes" : ""}
-          </span>
-          <button className="btn" onClick={() => load(activeFile)}>
-            <RotateCcw size={14} /> Reload
+        ))}
+        {!hasEnv && hasExample && (
+          <button className="btn" onClick={createFromExample}>
+            <FilePlus2 size={12} /> Create .env from example
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={!dirty}>
-            <Save size={14} /> Save
+        )}
+      </div>
+
+      {error && <div className="error-bar">{error}</div>}
+
+      {missingKeys.length > 0 && (
+        <div className="env-missing">
+          ⚠ Missing keys from example: {missingKeys.join(", ")}
+          <button className="btn" onClick={addMissingKeys}>
+            <Plus size={12} /> Add them
           </button>
         </div>
+      )}
+
+      <div className="env-rows">
+        {entries.map((e, i) => (
+          <div className="env-row" key={i}>
+            <input
+              className="env-key"
+              value={e.key}
+              onChange={(ev) => update(i, { key: ev.target.value })}
+              placeholder="KEY"
+              spellCheck={false}
+            />
+            <input
+              className="env-value"
+              type={e.isSecret && !visible.has(i) ? "password" : "text"}
+              value={e.value}
+              onChange={(ev) => update(i, { value: ev.target.value })}
+              placeholder="value"
+              spellCheck={false}
+            />
+            {e.isSecret && (
+              <>
+                <span className="tag tag-warn">secret</span>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() =>
+                    setVisible((prev) => {
+                      const next = new Set(prev);
+                      next.has(i) ? next.delete(i) : next.add(i);
+                      return next;
+                    })
+                  }
+                >
+                  {visible.has(i) ? <EyeOff size={13} /> : <Eye size={13} />}
+                </button>
+              </>
+            )}
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                setEntries((prev) => prev.filter((_, j) => j !== i));
+                setDirty(true);
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+        {entries.length === 0 && <p className="dim">No entries.</p>}
+      </div>
+
+      <div className="env-foot">
+        <button
+          className="btn"
+          onClick={() => {
+            setEntries((prev) => [...prev, { key: "", value: "", isSecret: false }]);
+            setDirty(true);
+          }}
+        >
+          <Plus size={12} /> Add variable
+        </button>
+        <span className="dim" style={{ marginLeft: "auto" }}>
+          {saved ? "saved" : dirty ? "unsaved changes" : ""}
+        </span>
+        <button className="btn" onClick={() => load(activeFile)}>
+          <RotateCcw size={12} /> Reload
+        </button>
+        <button className="btn btn-ok" onClick={save} disabled={!dirty}>
+          <Save size={12} /> Save
+        </button>
       </div>
     </div>
   );
