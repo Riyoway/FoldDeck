@@ -1384,6 +1384,24 @@ body.resizing-v {
   margin-bottom: 12px;
 }
 
+/* ---- terminal (xterm) ---- */
+
+.term-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #050506;
+  padding: 6px 4px 6px 10px;
+}
+
+.term-host .xterm {
+  height: 100%;
+}
+
+.term-host .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
 /* ---- markdown ---- */
 
 .md-view {

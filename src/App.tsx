@@ -39,6 +39,7 @@ import ContextMenu, { type MenuItem, type MenuState } from "./ContextMenu";
 import Dashboard from "./Dashboard";
 import LogView from "./LogView";
 import MarkdownView from "./MarkdownView";
+import TerminalView from "./TerminalView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
@@ -83,7 +84,7 @@ export interface ProjectStatus {
   lastStoppedAt?: number | null;
 }
 
-type Tab = "logs" | "readme" | "bot" | "doctor" | "env" | "packages" | "info";
+type Tab = "logs" | "terminal" | "readme" | "bot" | "doctor" | "env" | "packages" | "info";
 
 const MAX_LOG_LINES = 2000;
 
@@ -374,6 +375,7 @@ function App() {
   const tabs: [Tab, string, boolean][] = selected
     ? [
         ["logs", "Logs", true],
+        ["terminal", "Terminal", true],
         ["readme", "Readme", (selected.docs?.length ?? 0) > 0],
         ["bot", "Bot", selected.kind === "bot"],
         ["doctor", "Doctor", true],
@@ -691,6 +693,9 @@ function App() {
                   >
                     <LogView lines={logs[selected.id] ?? []} />
                   </div>
+                )}
+                {activeTab === "terminal" && (
+                  <TerminalView key={selected.id} projectId={selected.id} cwd={selected.path} />
                 )}
                 {activeTab === "readme" && <MarkdownView key={selected.id} project={selected} />}
                 {activeTab === "bot" && (

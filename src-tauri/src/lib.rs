@@ -4,6 +4,7 @@ mod env_file;
 mod process;
 mod recipes;
 mod static_server;
+mod terminal;
 
 use detect::{detect, project_id, ProjectInfo};
 use env_file::EnvEntry;
@@ -28,6 +29,7 @@ struct StoredProject {
 
 pub struct AppState {
     pub manager: ProcessManager,
+    pub terminals: terminal::TerminalManager,
     projects: Mutex<Vec<StoredProject>>,
     store_path: PathBuf,
     recipes_dir: PathBuf,
@@ -138,6 +140,7 @@ fn add_project(path: String, state: tauri::State<AppState>) -> Result<ProjectInf
 #[tauri::command]
 fn remove_project(id: String, state: tauri::State<AppState>) {
     let _ = state.manager.stop(&id);
+    state.terminals.close(&id);
     let mut projects = state.projects.lock().unwrap();
     projects.retain(|p| project_id(&p.path) != id);
     save_store(&state.store_path, &projects);
@@ -477,6 +480,36 @@ fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<
 }
 
 #[tauri::command]
+fn terminal_open(
+    id: String,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    // cwd comes from the stored project, not arbitrary input.
+    let dir = find_stored(&state, &id)?.path;
+    let _ = cwd;
+    state.terminals.open(&app, &id, &dir, cols, rows)
+}
+
+#[tauri::command]
+fn terminal_input(id: String, data: Vec<u8>, state: tauri::State<AppState>) -> Result<(), String> {
+    state.terminals.input(&id, &data)
+}
+
+#[tauri::command]
+fn terminal_resize(id: String, cols: u16, rows: u16, state: tauri::State<AppState>) {
+    state.terminals.resize(&id, cols, rows);
+}
+
+#[tauri::command]
+fn terminal_close(id: String, state: tauri::State<AppState>) {
+    state.terminals.close(&id);
+}
+
+#[tauri::command]
 fn read_markdown(
     id: String,
     path: String,
@@ -523,6 +556,7 @@ pub fn run() {
             let projects = load_store(&store_path);
             app.manage(AppState {
                 manager: ProcessManager::default(),
+                terminals: terminal::TerminalManager::default(),
                 projects: Mutex::new(projects),
                 store_path,
                 recipes: Mutex::new(recipes::load_recipes(&recipes_dir)),
@@ -559,7 +593,11 @@ pub fn run() {
             read_env_file,
             save_env_file,
             create_env_from_example,
-            read_markdown
+            read_markdown,
+            terminal_open,
+            terminal_input,
+            terminal_resize,
+            terminal_close
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -567,6 +605,7 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 if let Some(state) = app.try_state::<AppState>() {
                     state.manager.stop_all();
+                    state.terminals.close_all();
                 }
             }
         });
