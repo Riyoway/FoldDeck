@@ -24,7 +24,8 @@ pub struct AppState {
     pub manager: ProcessManager,
     projects: Mutex<Vec<StoredProject>>,
     store_path: PathBuf,
-    recipes: Vec<recipes::Recipe>,
+    recipes_dir: PathBuf,
+    recipes: Mutex<Vec<recipes::Recipe>>,
 }
 
 fn load_store(store: &Path) -> Vec<StoredProject> {
@@ -83,7 +84,7 @@ fn project_info_with(stored: &StoredProject, recipes: &[recipes::Recipe]) -> Pro
 }
 
 fn project_info(state: &tauri::State<AppState>, stored: &StoredProject) -> ProjectInfo {
-    project_info_with(stored, &state.recipes)
+    project_info_with(stored, &state.recipes.lock().unwrap())
 }
 
 #[tauri::command]
@@ -265,6 +266,22 @@ fn open_folder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_app_paths(state: tauri::State<AppState>) -> serde_json::Value {
+    serde_json::json!({
+        "appData": state.store_path.parent().map(|p| p.to_string_lossy()).unwrap_or_default(),
+        "recipes": state.recipes_dir.to_string_lossy(),
+    })
+}
+
+#[tauri::command]
+fn reload_recipes(state: tauri::State<AppState>) -> usize {
+    let loaded = recipes::load_recipes(&state.recipes_dir);
+    let count = loaded.len();
+    *state.recipes.lock().unwrap() = loaded;
+    count
+}
+
+#[tauri::command]
 fn read_env_file(
     id: String,
     file_name: String,
@@ -306,7 +323,8 @@ pub fn run() {
                 manager: ProcessManager::default(),
                 projects: Mutex::new(projects),
                 store_path,
-                recipes: recipes::load_recipes(&recipes_dir),
+                recipes: Mutex::new(recipes::load_recipes(&recipes_dir)),
+                recipes_dir,
             });
             Ok(())
         })
@@ -327,6 +345,8 @@ pub fn run() {
             get_logs,
             get_statuses,
             open_folder,
+            get_app_paths,
+            reload_recipes,
             read_env_file,
             save_env_file,
             create_env_from_example

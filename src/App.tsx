@@ -2,14 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   ExternalLink,
   FolderOpen,
+  Minus,
   Play,
   Plus,
   RotateCw,
+  Settings,
   Square,
   Trash2,
   X,
@@ -18,8 +21,12 @@ import BotPanel from "./BotPanel";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
+import SettingsPage from "./SettingsPage";
 import { confirmCommandAudit } from "./audit";
+import { getSetting } from "./settings";
 import "./App.css";
+
+const appWindow = getCurrentWindow();
 
 export interface ProjectInfo {
   id: string;
@@ -67,6 +74,7 @@ function App() {
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("logs");
+  const [view, setView] = useState<"main" | "settings">("main");
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -135,7 +143,7 @@ function App() {
   }, [addPaths, refreshAll, refreshStatuses]);
 
   useEffect(() => {
-    if (tab === "logs") logEndRef.current?.scrollIntoView();
+    if (tab === "logs" && getSetting("logAutoScroll")) logEndRef.current?.scrollIntoView();
   }, [logs, selectedId, tab]);
 
   const selected = projects.find((p) => p.id === selectedId) ?? null;
@@ -230,14 +238,34 @@ function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <span className="brand">FoldDeck</span>
-        <span className="topbar-hint">drop a folder to add a project</span>
-        <button className="btn" onClick={addFolder}>
-          <Plus size={13} /> Add folder
-        </button>
+      <header className="titlebar" data-tauri-drag-region>
+        <span className="brand" data-tauri-drag-region>
+          FoldDeck
+        </span>
+        <div className="titlebar-controls">
+          <button
+            className={`tb-btn ${view === "settings" ? "tb-btn-active" : ""}`}
+            title="Settings"
+            onClick={() => setView(view === "settings" ? "main" : "settings")}
+          >
+            <Settings size={14} />
+          </button>
+          <button className="tb-btn" title="Minimize" onClick={() => appWindow.minimize()}>
+            <Minus size={14} />
+          </button>
+          <button className="tb-btn" title="Maximize" onClick={() => appWindow.toggleMaximize()}>
+            <Square size={11} />
+          </button>
+          <button className="tb-btn tb-close" title="Close" onClick={() => appWindow.close()}>
+            <X size={15} />
+          </button>
+        </div>
       </header>
 
+      {view === "settings" ? (
+        <SettingsPage onClose={() => setView("main")} />
+      ) : (
+        <>
       {error && (
         <div className="error-bar">
           <span>{error}</span>
@@ -249,22 +277,31 @@ function App() {
 
       <div className="body">
         <aside className="sidebar">
+          <div className="sidebar-actions">
+            <button className="btn btn-primary" onClick={addFolder}>
+              <Plus size={13} /> Add folder
+            </button>
+          </div>
           {projects.length === 0 && (
             <div className="sidebar-empty">
-              No projects.
+              No projects yet.
               <br />
-              Drop a folder or use Add folder.
+              Drop a folder anywhere, or use Add folder.
             </div>
           )}
           {running.length > 0 && (
             <>
-              <div className="group-label">running — {running.length}</div>
+              <div className="group-label">
+                Running <span className="counter">{running.length}</span>
+              </div>
               {running.map(renderRow)}
             </>
           )}
           {stopped.length > 0 && (
             <>
-              <div className="group-label">stopped — {stopped.length}</div>
+              <div className="group-label">
+                Stopped <span className="counter">{stopped.length}</span>
+              </div>
               {stopped.map(renderRow)}
             </>
           )}
@@ -453,6 +490,8 @@ function App() {
           )}
         </main>
       </div>
+        </>
+      )}
 
       {dragging && <div className="drop-overlay">Drop folder to add</div>}
     </div>

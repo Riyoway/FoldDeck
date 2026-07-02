@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getSetting } from "./settings";
 
 /** Runs the command audit; asks the user before running a flagged command. */
 export async function confirmCommandAudit(command: string): Promise<boolean> {
+  if (!getSetting("commandAuditConfirm")) return true;
   const findings = await invoke<string[]>("run_command_audit", { command });
   if (findings.length === 0) return true;
   return confirm(
