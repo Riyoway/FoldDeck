@@ -5,7 +5,10 @@ module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
+    // HeroUI component class strings live in @heroui/theme's dist (.mjs). Under
+    // pnpm that package isn't at the top level, so scan the real .pnpm path.
+    "./node_modules/@heroui/theme/dist/**/*.{js,mjs,cjs}",
+    "./node_modules/.pnpm/**/@heroui/theme/dist/**/*.{js,mjs,cjs}",
   ],
   theme: {
     extend: {},
