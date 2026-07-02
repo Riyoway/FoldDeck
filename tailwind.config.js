@@ -18,30 +18,14 @@ module.exports = {
         // Near-monochrome: grayscale UI with a single restrained red for
         // destructive/error affordances only.
         "mono-dark": {
+          // Inherit dark's neutral gray ramps (default/content) so flat/light
+          // buttons and switch tracks keep proper contrast; only recolor the
+          // brand/semantic tokens to stay monochrome.
           extend: "dark",
           colors: {
             background: "#0b0b0c",
             foreground: "#e6e6e6",
             focus: "#a1a1aa",
-            content1: "#141416",
-            content2: "#1c1c1f",
-            content3: "#26262a",
-            content4: "#34343a",
-            divider: "rgba(255,255,255,0.10)",
-            default: {
-              50: "#0e0e10",
-              100: "#161618",
-              200: "#26262a",
-              300: "#34343a",
-              400: "#52525b",
-              500: "#71717a",
-              600: "#a1a1aa",
-              700: "#d4d4d8",
-              800: "#e4e4e7",
-              900: "#fafafa",
-              DEFAULT: "#26262a",
-              foreground: "#e6e6e6",
-            },
             primary: {
               50: "#1c1c1f",
               100: "#26262a",
@@ -65,7 +49,7 @@ module.exports = {
               foreground: "#0b0b0c",
             },
             warning: {
-              DEFAULT: "#a1a1aa",
+              DEFAULT: "#c9c2b4",
               foreground: "#0b0b0c",
             },
             danger: {
