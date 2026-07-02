@@ -1,4 +1,5 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Reorder, useDragControls } from "framer-motion";
 import { Button } from "@heroui/react";
 import { GripVertical, LayoutDashboard, Plus } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
@@ -19,6 +20,63 @@ interface Props {
 const MIN_W = 210;
 const MAX_W = 480;
 
+function ProjectRow({
+  project,
+  running,
+  selected,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+}: {
+  project: ProjectInfo;
+  running: boolean;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={project.id}
+      as="div"
+      dragListener={false}
+      dragControls={controls}
+      className={`row ${selected ? "row-selected" : ""}`}
+      onClick={() => onSelect(project.id)}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      whileDrag={{
+        scale: 1.03,
+        backgroundColor: "#2b2b31",
+        boxShadow: "0 8px 22px rgba(0,0,0,0.55)",
+        cursor: "grabbing",
+      }}
+    >
+      <span
+        className="grip"
+        title="Drag to reorder"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          controls.start(e);
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical size={14} />
+      </span>
+      <span className={`st ${running ? "st-on" : ""}`} />
+      <ProjectIcon project={project} size={14} />
+      <span className="row-name">{project.name}</span>
+      {project.warnings.length > 0 && (
+        <span className="row-warn" title={`${project.warnings.length} warning(s)`}>
+          {project.warnings.length}
+        </span>
+      )}
+      <span className="row-fw">{project.framework ?? project.kind}</span>
+    </Reorder.Item>
+  );
+}
+
 export default function Sidebar({
   projects,
   statuses,
@@ -30,57 +88,29 @@ export default function Sidebar({
   onReorder,
   onResize,
 }: Props) {
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [order, setOrder] = useState<string[] | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
+  const draggingRef = useRef(false);
+  const orderRef = useRef(order);
+  orderRef.current = order;
 
-  // While dragging, render from the working order; otherwise from the prop.
-  const displayed =
-    dragId && order
-      ? (order.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as ProjectInfo[])
-      : projects;
+  // Keep the local order in sync with the project list (add/remove) except
+  // while a drag is in progress.
+  useEffect(() => {
+    if (draggingRef.current) return;
+    const ids = projects.map((p) => p.id);
+    setOrder((prev) => (prev.join("|") === ids.join("|") ? prev : ids));
+  }, [projects]);
 
-  // Pointer tracking lives on `window`, not on the grip element, so the live
-  // reorder re-rendering the row can't drop the drag (which caused the item to
-  // stop following, snap back, and stay highlighted after release).
-  const startDrag = (id: string, e: ReactPointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    let current = projects.map((p) => p.id);
-    setDragId(id);
-    setOrder(current);
+  const byId = new Map(projects.map((p) => [p.id, p] as const));
 
-    const move = (ev: PointerEvent) => {
-      if (!listRef.current) return;
-      const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>("[data-proj-id]"));
-      let overId: string | null = null;
-      for (const row of rows) {
-        const r = row.getBoundingClientRect();
-        if (ev.clientY < r.top + r.height / 2) {
-          overId = row.dataset.projId ?? null;
-          break;
-        }
-      }
-      if (overId === id) return;
-      const without = current.filter((x) => x !== id);
-      const idx = overId ? without.indexOf(overId) : without.length;
-      const next = [...without.slice(0, idx), id, ...without.slice(idx)];
-      if (next.join("|") !== current.join("|")) {
-        current = next;
-        setOrder(next);
-      }
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      document.body.classList.remove("dragging-row");
-      onReorder(current);
-      setDragId(null);
-      setOrder(null);
-    };
+  const handleDragStart = () => {
+    draggingRef.current = true;
     document.body.classList.add("dragging-row");
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+  };
+  const handleDragEnd = () => {
+    draggingRef.current = false;
+    document.body.classList.remove("dragging-row");
+    onReorder(orderRef.current);
   };
 
   const startResize = (e: ReactPointerEvent) => {
@@ -128,41 +158,27 @@ export default function Sidebar({
           Drop a folder anywhere, or use Add folder.
         </div>
       ) : (
-        <div className="sidebar-list" ref={listRef}>
+        <div className="sidebar-list">
           <div className="group-label">
             Projects <span className="counter">{projects.length}</span>
           </div>
-          {displayed.map((p) => {
-            const running = !!statuses[p.id]?.running;
-            return (
-              <div
-                key={p.id}
-                data-proj-id={p.id}
-                className={`row ${p.id === selectedId ? "row-selected" : ""} ${
-                  dragId === p.id ? "row-dragging" : ""
-                }`}
-                onClick={() => onSelectProject(p.id)}
-              >
-                <span
-                  className="grip"
-                  title="Drag to reorder"
-                  onPointerDown={(e) => startDrag(p.id, e)}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <GripVertical size={13} />
-                </span>
-                <span className={`st ${running ? "st-on" : ""}`} />
-                <ProjectIcon project={p} size={14} />
-                <span className="row-name">{p.name}</span>
-                {p.warnings.length > 0 && (
-                  <span className="row-warn" title={`${p.warnings.length} warning(s)`}>
-                    {p.warnings.length}
-                  </span>
-                )}
-                <span className="row-fw">{p.framework ?? p.kind}</span>
-              </div>
-            );
-          })}
+          <Reorder.Group axis="y" values={order} onReorder={setOrder} as="div">
+            {order.map((id) => {
+              const p = byId.get(id);
+              if (!p) return null;
+              return (
+                <ProjectRow
+                  key={id}
+                  project={p}
+                  running={!!statuses[id]?.running}
+                  selected={id === selectedId}
+                  onSelect={onSelectProject}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                />
+              );
+            })}
+          </Reorder.Group>
         </div>
       )}
 
