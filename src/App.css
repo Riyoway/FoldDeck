@@ -368,6 +368,8 @@ body.resizing {
 }
 
 .row-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -385,18 +387,14 @@ body.resizing {
 }
 
 .row-fw {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 11px;
   flex-shrink: 0;
-}
-
-.row-port {
-  color: var(--muted);
-  font-size: 11px;
-  min-width: 42px;
+  max-width: 96px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   text-align: right;
-  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 /* ---- detail ---- */

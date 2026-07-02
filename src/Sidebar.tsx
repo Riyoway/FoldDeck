@@ -115,7 +115,6 @@ export default function Sidebar({
           </div>
           {displayed.map((p) => {
             const running = !!statuses[p.id]?.running;
-            const url = statuses[p.id]?.url;
             return (
               <div
                 key={p.id}
@@ -138,15 +137,12 @@ export default function Sidebar({
                 <span className={`st ${running ? "st-on" : ""}`} />
                 <ProjectIcon project={p} size={14} />
                 <span className="row-name">{p.name}</span>
-                {p.warnings.length > 0 && <span className="row-warn">{p.warnings.length}</span>}
+                {p.warnings.length > 0 && (
+                  <span className="row-warn" title={`${p.warnings.length} warning(s)`}>
+                    {p.warnings.length}
+                  </span>
+                )}
                 <span className="row-fw">{p.framework ?? p.kind}</span>
-                <span className="row-port">
-                  {running && url
-                    ? url.replace(/^https?:\/\//, "")
-                    : p.defaultPort
-                      ? `:${p.defaultPort}`
-                      : ""}
-                </span>
               </div>
             );
           })}
