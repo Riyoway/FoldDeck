@@ -85,7 +85,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   const refreshProjects = useCallback(async () => {
     setProjects(await invoke<ProjectInfo[]>("list_projects"));
@@ -151,7 +151,12 @@ function App() {
   }, [addPaths, refreshAll, refreshStatuses]);
 
   useEffect(() => {
-    if (tab === "logs" && getSetting("logAutoScroll")) logEndRef.current?.scrollIntoView();
+    // Scroll the terminal container itself — never scrollIntoView, which also
+    // scrolls ancestor scroll containers and would lift the whole app (and the
+    // titlebar) off the top of the window.
+    if (tab === "logs" && getSetting("logAutoScroll") && terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
   }, [logs, selectedId, tab]);
 
   // Frameless-window guards: keep the custom titlebar reachable if the window is
@@ -526,9 +531,8 @@ function App() {
 
               <div className="tab-content">
                 {activeTab === "logs" && (
-                  <div className="terminal">
+                  <div className="terminal" ref={terminalRef}>
                     <LogView lines={logs[selected.id] ?? []} />
-                    <div ref={logEndRef} />
                   </div>
                 )}
                 {activeTab === "bot" && (

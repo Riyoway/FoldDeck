@@ -26,6 +26,7 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
   background: var(--bg);
@@ -34,7 +35,9 @@ body {
   font-size: 14px;
   line-height: 1.5;
   user-select: none;
-  overflow: hidden;
+  /* clip (not hidden): a clip container cannot be scrolled programmatically,
+     so a stray scrollIntoView/focus can never push the titlebar off-screen. */
+  overflow: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -46,6 +49,7 @@ button {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: clip;
 }
 
 /* ---- custom titlebar ---- */
