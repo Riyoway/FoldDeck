@@ -413,6 +413,37 @@ body.resizing {
 
 .detail-head {
   padding: 16px 20px 0;
+  flex-shrink: 0;
+}
+
+.detail-resize {
+  position: relative;
+  height: 8px;
+  margin: -3px 0;
+  cursor: row-resize;
+  flex-shrink: 0;
+  z-index: 4;
+}
+
+.detail-resize::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 2px;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.detail-resize:hover::after,
+body.resizing-v .detail-resize::after {
+  background: var(--accent);
+}
+
+body.resizing-v {
+  cursor: row-resize;
+  user-select: none;
 }
 
 .detail-title {

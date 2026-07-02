@@ -90,6 +90,8 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getSetting("sidebarCollapsed"));
   const [sidebarWidth, setSidebarWidth] = useState(getSetting("sidebarWidth"));
   const [fileServerAsk, setFileServerAsk] = useState<ProjectInfo | null>(null);
+  const [detailHeaderHeight, setDetailHeaderHeight] = useState(getSetting("detailHeaderHeight"));
+  const detailHeadRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -269,6 +271,26 @@ function App() {
     setSetting("sidebarWidth", w);
   };
 
+  const startHeaderResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = detailHeadRef.current?.offsetHeight ?? 160;
+    const set = (h: number) => {
+      const clamped = Math.min(window.innerHeight * 0.6, Math.max(48, h));
+      setDetailHeaderHeight(clamped);
+      setSetting("detailHeaderHeight", clamped);
+    };
+    const move = (ev: PointerEvent) => set(startH + ev.clientY - startY);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("resizing-v");
+    };
+    document.body.classList.add("resizing-v");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const reorderProjects = (ids: string[]) => {
     // Optimistic reorder so there's no flash, then persist to the backend.
     setProjects((prev) => ids.map((id) => prev.find((p) => p.id === id)).filter(Boolean) as ProjectInfo[]);
@@ -366,7 +388,15 @@ function App() {
             />
           ) : (
             <>
-              <div className="detail-head">
+              <div
+                className="detail-head"
+                ref={detailHeadRef}
+                style={
+                  detailHeaderHeight
+                    ? { height: detailHeaderHeight, overflowY: "auto" }
+                    : undefined
+                }
+              >
                 <div className="detail-title">
                   {renaming ? (
                     <>
@@ -525,6 +555,8 @@ function App() {
                   </button>
                 </div>
               </div>
+
+              <div className="detail-resize" onPointerDown={startHeaderResize} title="Drag to resize" />
 
               <div className="tabbar">
                 {tabs

@@ -6,6 +6,7 @@ type Settings = {
   uiZoom: number;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  detailHeaderHeight: number;
   fileServerDefault: "ask" | "builtin" | "python";
 };
 
@@ -15,6 +16,7 @@ const DEFAULTS: Settings = {
   uiZoom: 1,
   sidebarWidth: 288,
   sidebarCollapsed: false,
+  detailHeaderHeight: 0,
   fileServerDefault: "ask",
 };
 
