@@ -609,6 +609,53 @@ body {
   color: var(--red);
 }
 
+/* ---- audit / bot ---- */
+
+.audit-result {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.audit-summary {
+  display: flex;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.sev {
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.sev-critical {
+  color: #ff7b72;
+  font-weight: 700;
+}
+
+.sev-high {
+  color: var(--red);
+}
+
+.sev-moderate {
+  color: var(--amber);
+}
+
+.sev-low,
+.sev-info {
+  color: var(--muted);
+}
+
+.bot-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 /* ---- drop overlay ---- */
 
 .drop-overlay {

@@ -135,6 +135,17 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
 
       {error && <div className="error-bar">{error}</div>}
 
+      {(() => {
+        const keys = entries.map((e) => e.key.trim());
+        const dupes = [...new Set(keys.filter((k, i) => k && keys.indexOf(k) !== i))];
+        const issues = [
+          dupes.length ? `duplicate keys: ${dupes.join(", ")}` : null,
+          keys.some((k, i) => !k && entries[i].value) ? "entry with empty key" : null,
+          entries.some((e) => e.value.includes("\n")) ? "value contains a newline" : null,
+        ].filter(Boolean);
+        return issues.length > 0 ? <div className="env-missing">⚠ {issues.join(" · ")}</div> : null;
+      })()}
+
       {missingKeys.length > 0 && (
         <div className="env-missing">
           ⚠ Missing keys from example: {missingKeys.join(", ")}

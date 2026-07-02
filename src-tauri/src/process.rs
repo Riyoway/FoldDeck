@@ -20,6 +20,7 @@ pub struct ProjectStatus {
     pub url: Option<String>,
     pub crash_count: u32,
     pub last_exit_code: Option<i32>,
+    pub last_stopped_at: Option<u64>,
 }
 
 enum ProcHandle {
@@ -42,6 +43,7 @@ struct ProjectRuntime {
     logs: Arc<Mutex<VecDeque<String>>>,
     crash_count: Arc<AtomicU32>,
     last_exit_code: Option<i32>,
+    last_stopped_at: Option<u64>,
 }
 
 impl Default for ProjectRuntime {
@@ -51,6 +53,7 @@ impl Default for ProjectRuntime {
             logs: Arc::new(Mutex::new(VecDeque::new())),
             crash_count: Arc::new(AtomicU32::new(0)),
             last_exit_code: None,
+            last_stopped_at: None,
         }
     }
 }
@@ -232,6 +235,7 @@ impl ProcessManager {
                 if let Some(rt) = projects.get_mut(&id) {
                     rt.proc = None;
                     rt.last_exit_code = code;
+                    rt.last_stopped_at = Some(now_secs());
                 }
             }
             let _ = app.emit(
@@ -300,6 +304,7 @@ impl ProcessManager {
                 if let Some(rt) = projects.get_mut(&id) {
                     rt.proc = None;
                     rt.last_exit_code = Some(0);
+                    rt.last_stopped_at = Some(now_secs());
                 }
             }
             let _ = app.emit(
@@ -384,6 +389,7 @@ impl ProcessManager {
                 url: rt.proc.as_ref().and_then(|p| p.url.lock().unwrap().clone()),
                 crash_count: rt.crash_count.load(Ordering::SeqCst),
                 last_exit_code: rt.last_exit_code,
+                last_stopped_at: rt.last_stopped_at,
             },
             None => ProjectStatus {
                 id: id.to_string(),
@@ -392,6 +398,7 @@ impl ProcessManager {
                 url: None,
                 crash_count: 0,
                 last_exit_code: None,
+                last_stopped_at: None,
             },
         }
     }

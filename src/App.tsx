@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import BotPanel from "./BotPanel";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
@@ -45,9 +46,10 @@ export interface ProjectStatus {
   url?: string | null;
   crashCount: number;
   lastExitCode?: number | null;
+  lastStoppedAt?: number | null;
 }
 
-type Tab = "logs" | "doctor" | "env" | "packages" | "info";
+type Tab = "logs" | "bot" | "doctor" | "env" | "packages" | "info";
 
 const MAX_LOG_LINES = 2000;
 
@@ -217,6 +219,7 @@ function App() {
   const tabs: [Tab, string, boolean][] = selected
     ? [
         ["logs", "Logs", true],
+        ["bot", "Bot", selected.kind === "bot"],
         ["doctor", "Doctor", true],
         ["env", "Env", selected.envFiles.length > 0],
         ["packages", "Packages", !!selected.packageManager],
@@ -392,6 +395,9 @@ function App() {
                     <pre>{(logs[selected.id] ?? []).join("\n") || "No output. Press Start to run the project."}</pre>
                     <div ref={logEndRef} />
                   </div>
+                )}
+                {activeTab === "bot" && (
+                  <BotPanel key={selected.id} project={selected} status={st} logs={logs[selected.id] ?? []} />
                 )}
                 {activeTab === "doctor" && <DoctorPanel key={selected.id} projectId={selected.id} />}
                 {activeTab === "env" && (

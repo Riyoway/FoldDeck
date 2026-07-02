@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Download, Pin, Play, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { ProjectInfo } from "./App";
@@ -10,6 +11,14 @@ interface Props {
   onError: (msg: string) => void;
 }
 
+interface AuditResult {
+  supported: boolean;
+  summary: Record<string, number>;
+  advisories: { severity: string; package: string; title: string }[];
+}
+
+const SEVERITY_ORDER = ["critical", "high", "moderate", "low", "info"];
+
 function runCommand(pm: string, script: string): string {
   if (pm === "npm") return `npm run ${script}`;
   if (pm === "bun") return `bun run ${script}`;
@@ -20,6 +29,8 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
   const pm = project.packageManager ?? "npm";
   const scripts = Object.entries(project.scripts);
   const isNode = ["npm", "pnpm", "yarn", "bun"].includes(pm);
+  const [audit, setAudit] = useState<AuditResult | null>(null);
+  const [auditing, setAuditing] = useState(false);
 
   const call = async (cmd: string, args: Record<string, unknown>, thenLogs = true) => {
     try {
@@ -43,13 +54,30 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
     call("run_project_command", { id: project.id, command });
   };
 
-  const auditCommand =
+  const rawAuditCommand =
     pm === "yarn" ? "yarn audit" : pm === "pip" ? "pip-audit" : pm === "uv" ? "uv pip audit" : `${pm} audit`;
 
-  const setStart = async (script: string) => {
-    await call("set_start_command", { id: project.id, command: runCommand(pm, script) }, false);
-    onChanged();
+  const runAudit = async () => {
+    setAuditing(true);
+    setAudit(null);
+    try {
+      const result = await invoke<AuditResult>("run_dependency_audit", { id: project.id });
+      if (result.supported) {
+        setAudit(result);
+      } else {
+        // No structured output for this manager — stream the raw command to Logs.
+        await call("run_project_command", { id: project.id, command: rawAuditCommand });
+      }
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      setAuditing(false);
+    }
   };
+
+  const totalVulns = audit
+    ? SEVERITY_ORDER.reduce((n, s) => n + (audit.summary[s] ?? 0), 0)
+    : 0;
 
   return (
     <div className="pkg">
@@ -77,14 +105,39 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
             <RefreshCcw size={12} /> Reinstall
           </button>
         )}
-        <button
-          className="btn"
-          title={`Run ${auditCommand} (output goes to Logs)`}
-          onClick={() => call("run_project_command", { id: project.id, command: auditCommand })}
-        >
-          <ShieldAlert size={12} /> Audit
+        <button className="btn" onClick={runAudit} disabled={auditing} title={`Run ${rawAuditCommand}`}>
+          <ShieldAlert size={12} /> {auditing ? "Auditing…" : "Audit"}
         </button>
       </div>
+
+      {audit && (
+        <div className="audit-result">
+          <div className="audit-summary">
+            {totalVulns === 0 ? (
+              <span className="ok-text">No known vulnerabilities.</span>
+            ) : (
+              SEVERITY_ORDER.filter((s) => (audit.summary[s] ?? 0) > 0).map((s) => (
+                <span key={s} className={`sev sev-${s}`}>
+                  {s}: {audit.summary[s]}
+                </span>
+              ))
+            )}
+          </div>
+          {audit.advisories.length > 0 && (
+            <table className="pkg-scripts">
+              <tbody>
+                {audit.advisories.map((a, i) => (
+                  <tr key={i}>
+                    <td className={`sev sev-${a.severity}`}>{a.severity}</td>
+                    <td className="pkg-script-name">{a.package}</td>
+                    <td className="pkg-script-cmd">{a.title}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {scripts.length > 0 && (
         <table className="pkg-scripts">
@@ -104,7 +157,10 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
                   <button
                     className="btn btn-ghost"
                     title="Set as start command"
-                    onClick={() => setStart(name)}
+                    onClick={async () => {
+                      await call("set_start_command", { id: project.id, command: runCommand(pm, name) }, false);
+                      onChanged();
+                    }}
                   >
                     <Pin size={12} />
                   </button>

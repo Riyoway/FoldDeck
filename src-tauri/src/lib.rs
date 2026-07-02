@@ -2,6 +2,7 @@ mod audit;
 mod detect;
 mod env_file;
 mod process;
+mod recipes;
 mod static_server;
 
 use detect::{detect, project_id, ProjectInfo};
@@ -23,6 +24,7 @@ pub struct AppState {
     pub manager: ProcessManager,
     projects: Mutex<Vec<StoredProject>>,
     store_path: PathBuf,
+    recipes: Vec<recipes::Recipe>,
 }
 
 fn load_store(store: &Path) -> Vec<StoredProject> {
@@ -60,8 +62,11 @@ fn find_stored(state: &tauri::State<AppState>, id: &str) -> Result<StoredProject
         .ok_or_else(|| "Unknown project.".into())
 }
 
-fn project_info(stored: &StoredProject) -> ProjectInfo {
+fn project_info_with(stored: &StoredProject, recipes: &[recipes::Recipe]) -> ProjectInfo {
     let mut info = detect(&stored.path);
+    if let Some(recipe) = recipes::matching_recipe(Path::new(&stored.path), recipes) {
+        recipes::apply_recipe(&mut info, recipe);
+    }
     if let Some(cmd) = &stored.start_command {
         info.start_command = Some(cmd.clone());
     }
@@ -77,15 +82,14 @@ fn project_info(stored: &StoredProject) -> ProjectInfo {
     info
 }
 
+fn project_info(state: &tauri::State<AppState>, stored: &StoredProject) -> ProjectInfo {
+    project_info_with(stored, &state.recipes)
+}
+
 #[tauri::command]
 fn list_projects(state: tauri::State<AppState>) -> Vec<ProjectInfo> {
-    state
-        .projects
-        .lock()
-        .unwrap()
-        .iter()
-        .map(project_info)
-        .collect()
+    let stored: Vec<StoredProject> = state.projects.lock().unwrap().clone();
+    stored.iter().map(|p| project_info(&state, p)).collect()
 }
 
 #[tauri::command]
@@ -132,7 +136,7 @@ fn start_project(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = project_info(&find_stored(&state, &id)?);
+    let info = project_info(&state, &find_stored(&state, &id)?);
     if info.kind == "static-site" && info.start_command.is_none() {
         return state.manager.start_static(&app, &info);
     }
@@ -150,9 +154,20 @@ fn run_command_audit(command: String) -> Vec<String> {
 
 #[tauri::command]
 fn run_doctor(id: String, state: tauri::State<AppState>) -> Result<audit::DoctorReport, String> {
-    let info = project_info(&find_stored(&state, &id)?);
+    let info = project_info(&state, &find_stored(&state, &id)?);
     let running = state.manager.status(&id).running;
-    Ok(audit::doctor(&info, running))
+    let logs = state.manager.logs(&id);
+    Ok(audit::doctor(&info, running, &logs))
+}
+
+#[tauri::command]
+fn run_dependency_audit(
+    id: String,
+    state: tauri::State<AppState>,
+) -> Result<audit::DependencyAuditResult, String> {
+    let info = project_info(&state, &find_stored(&state, &id)?);
+    let pm = info.package_manager.as_deref().unwrap_or("npm");
+    audit::dependency_audit(&info.path, pm)
 }
 
 #[tauri::command]
@@ -187,7 +202,7 @@ fn run_project_command(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = project_info(&find_stored(&state, &id)?);
+    let info = project_info(&state, &find_stored(&state, &id)?);
     state.manager.start(&app, &info, &command)
 }
 
@@ -197,7 +212,7 @@ fn install_dependencies(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = project_info(&find_stored(&state, &id)?);
+    let info = project_info(&state, &find_stored(&state, &id)?);
     let cmd = match info.package_manager.as_deref() {
         Some("npm") | Some("pnpm") | Some("yarn") | Some("bun") => {
             format!("{} install", info.package_manager.as_deref().unwrap())
@@ -215,7 +230,7 @@ fn reinstall_dependencies(
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let info = project_info(&find_stored(&state, &id)?);
+    let info = project_info(&state, &find_stored(&state, &id)?);
     let pm = match info.package_manager.as_deref() {
         Some(pm @ ("npm" | "pnpm" | "yarn" | "bun")) => pm,
         _ => return Err("Reinstall is only supported for Node.js projects.".into()),
@@ -283,12 +298,15 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
+            let recipes_dir = dir.join("recipes");
+            let _ = std::fs::create_dir_all(&recipes_dir);
             let store_path = dir.join("projects.json");
             let projects = load_store(&store_path);
             app.manage(AppState {
                 manager: ProcessManager::default(),
                 projects: Mutex::new(projects),
                 store_path,
+                recipes: recipes::load_recipes(&recipes_dir),
             });
             Ok(())
         })
@@ -302,6 +320,7 @@ pub fn run() {
             restart_project,
             run_command_audit,
             run_doctor,
+            run_dependency_audit,
             run_project_command,
             install_dependencies,
             reinstall_dependencies,
