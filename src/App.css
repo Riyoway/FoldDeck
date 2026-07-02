@@ -1,22 +1,22 @@
 :root {
   color-scheme: dark;
-  --bg: #0d1117;
-  --bg-deep: #010409;
-  --panel: #161b22;
-  --panel-hover: #1c2430;
-  --border: #21262d;
-  --border-2: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-emphasis: #1f6feb;
-  --accent-soft: rgba(56, 139, 253, 0.12);
-  --green: #3fb950;
-  --green-emphasis: #238636;
-  --red: #f85149;
-  --red-emphasis: #da3633;
-  --amber: #d29922;
-  --tab-underline: #f78166;
+  --bg: #0b0b0c;
+  --bg-deep: #050506;
+  --panel: #141416;
+  --panel-hover: #1c1c1f;
+  --border: #26262a;
+  --border-2: #35353b;
+  --text: #e6e6e6;
+  --muted: #8a8a93;
+  --accent: #e4e4e7;
+  --accent-emphasis: #d4d4d8;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --green: #d4d4d8;
+  --green-emphasis: #e4e4e7;
+  --red: #d1565a;
+  --red-emphasis: #c9484c;
+  --amber: #a7a29a;
+  --tab-underline: #e4e4e7;
   --max-inset-top: 0px;
   --font-ui: "Segoe UI", -apple-system, system-ui, sans-serif;
   --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
@@ -135,7 +135,7 @@ button {
 
 .btn:hover {
   background: #30363d;
-  border-color: #8b949e66;
+  border-color: #6a6a72;
 }
 
 .btn:active {
@@ -149,13 +149,14 @@ button {
 
 .btn-primary {
   background: var(--green-emphasis);
-  border-color: rgba(240, 246, 252, 0.1);
-  color: #fff;
+  border-color: transparent;
+  color: #0b0b0c;
+  font-weight: 600;
 }
 
 .btn-primary:hover {
-  background: #2ea043;
-  border-color: rgba(240, 246, 252, 0.1);
+  background: #fff;
+  border-color: transparent;
 }
 
 .btn-ok {
@@ -326,9 +327,9 @@ body.resizing {
 }
 
 .row-dragging {
-  background: #1c2a3f !important;
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
-  opacity: 0.92;
+  background: #2b2b31 !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.5);
+  opacity: 0.95;
 }
 
 body.dragging-row,
@@ -370,7 +371,7 @@ body.dragging-row * {
 .st-on {
   background: var(--green);
   border-color: var(--green);
-  box-shadow: 0 0 5px rgba(63, 185, 80, 0.6);
+  box-shadow: 0 0 6px rgba(228, 228, 231, 0.55);
 }
 
 .row-name {
@@ -778,7 +779,7 @@ body.resizing-v {
 .env-row input:focus {
   outline: none;
   border-color: var(--accent-emphasis);
-  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
 }
 
 .env-key {
@@ -852,7 +853,7 @@ body.resizing-v {
 }
 
 .sev-critical {
-  color: #ff7b72;
+  color: var(--red);
   font-weight: 700;
 }
 
@@ -1270,7 +1271,7 @@ body.resizing-v {
 .port-input:focus,
 .rename-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
 }
 
 .row-nav {
@@ -1368,7 +1369,7 @@ body.resizing-v {
 .drop-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(88, 166, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
   outline: 2px dashed var(--accent);
   outline-offset: -8px;
   display: flex;
