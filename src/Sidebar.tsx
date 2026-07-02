@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Button } from "@heroui/react";
 import { GripVertical, LayoutDashboard, Plus } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
@@ -101,9 +102,15 @@ export default function Sidebar({
   return (
     <aside className="sidebar" style={{ width }}>
       <div className="sidebar-actions">
-        <button className="btn btn-primary" onClick={onAddFolder}>
-          <Plus size={13} /> Add folder
-        </button>
+        <Button
+          color="primary"
+          size="sm"
+          fullWidth
+          startContent={<Plus size={14} />}
+          onPress={onAddFolder}
+        >
+          Add folder
+        </Button>
       </div>
 
       <div

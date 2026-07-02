@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Button } from "@heroui/react";
 import { RotateCcw } from "lucide-react";
 
 interface DoctorReport {
@@ -47,9 +48,9 @@ export default function DoctorPanel({ projectId }: { projectId: string }) {
             </>
           )}
         </span>
-        <button className="btn" onClick={run}>
-          <RotateCcw size={12} /> Re-run
-        </button>
+        <Button size="sm" variant="flat" startContent={<RotateCcw size={14} />} onPress={run}>
+          Re-run
+        </Button>
       </div>
       {report.errors.length > 0 && (
         <div className="doctor-section">

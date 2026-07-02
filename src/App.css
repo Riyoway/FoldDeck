@@ -1072,8 +1072,9 @@ body.resizing-v {
 
 .stat {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
+}
+
+.stat-body {
   padding: 15px 18px;
 }
 
@@ -1082,6 +1083,10 @@ body.resizing-v {
   font-weight: 650;
   font-family: var(--font-mono);
   line-height: 1.05;
+}
+
+.port-input-hero {
+  width: 108px;
 }
 
 .stat-label {
@@ -1247,31 +1252,30 @@ body.resizing-v {
   margin-left: 8px;
 }
 
-.port-input,
+/* HeroUI Input width tuning */
 .rename-input {
-  background: var(--bg-deep);
-  border: 1px solid var(--accent-emphasis);
-  border-radius: 6px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  padding: 4px 9px;
-  font-size: 13px;
-  height: 28px;
-}
-
-.port-input {
-  width: 86px;
-}
-
-.rename-input {
-  font-size: 15px;
   width: 280px;
 }
 
-.port-input:focus,
-.rename-input:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
+.chip-dim {
+  color: var(--muted);
+}
+
+.chip-warn {
+  color: var(--amber);
+}
+
+.inline-code {
+  font-family: var(--font-mono);
+  background: var(--bg-deep);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.modal-head-hero {
+  display: flex;
+  align-items: center;
+  gap: 9px;
 }
 
 .row-nav {

@@ -6,6 +6,17 @@ import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  Button,
+  Chip,
+  Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tooltip,
+} from "@heroui/react";
+import {
   Check,
   ExternalLink,
   FolderOpen,
@@ -355,9 +366,9 @@ function App() {
       {error && (
         <div className="error-bar">
           <span>{error}</span>
-          <button className="btn btn-ghost" onClick={() => setError(null)}>
-            <X size={12} />
-          </button>
+          <Button isIconOnly size="sm" variant="light" className="ml-auto" aria-label="Dismiss error" onPress={() => setError(null)}>
+            <X size={14} />
+          </Button>
         </div>
       )}
 
@@ -400,12 +411,14 @@ function App() {
                 <div className="detail-title">
                   {renaming ? (
                     <>
-                      <input
+                      <Input
+                        size="sm"
+                        variant="bordered"
                         className="rename-input"
                         value={nameDraft}
                         autoFocus
                         placeholder="Display name (empty = folder name)"
-                        onChange={(e) => setNameDraft(e.target.value)}
+                        onValueChange={setNameDraft}
                         onKeyDown={async (e) => {
                           if (e.key === "Enter") {
                             await invoke("set_project_name", {
@@ -418,10 +431,12 @@ function App() {
                           if (e.key === "Escape") setRenaming(false);
                         }}
                       />
-                      <button
-                        className="btn btn-ghost"
-                        title="Save"
-                        onClick={async () => {
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="light"
+                        aria-label="Save name"
+                        onPress={async () => {
                           await invoke("set_project_name", {
                             id: selected.id,
                             name: nameDraft.trim() || null,
@@ -430,30 +445,46 @@ function App() {
                           await refreshProjects();
                         }}
                       >
-                        <Check size={13} />
-                      </button>
+                        <Check size={15} />
+                      </Button>
                     </>
                   ) : (
                     <>
                       <ProjectIcon project={selected} size={18} />
                       <span className="detail-name">{selected.name}</span>
-                      <button
-                        className="btn btn-ghost"
-                        title="Rename"
-                        onClick={() => {
-                          setNameDraft(selected.name);
-                          setRenaming(true);
-                        }}
-                      >
-                        <Pencil size={12} />
-                      </button>
+                      <Tooltip content="Rename" size="sm">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          aria-label="Rename"
+                          onPress={() => {
+                            setNameDraft(selected.name);
+                            setRenaming(true);
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                      </Tooltip>
                     </>
                   )}
-                  <span className="tag">{selected.framework ?? selected.kind}</span>
-                  {selected.subtype === "discord" && <span className="tag">discord bot</span>}
-                  {selected.runtime && <span className="tag tag-dim">{selected.runtime}</span>}
+                  <Chip size="sm" variant="flat">
+                    {selected.framework ?? selected.kind}
+                  </Chip>
+                  {selected.subtype === "discord" && (
+                    <Chip size="sm" variant="flat">
+                      discord bot
+                    </Chip>
+                  )}
+                  {selected.runtime && (
+                    <Chip size="sm" variant="flat" className="chip-dim">
+                      {selected.runtime}
+                    </Chip>
+                  )}
                   {selected.packageManager && (
-                    <span className="tag tag-dim">{selected.packageManager}</span>
+                    <Chip size="sm" variant="flat" className="chip-dim">
+                      {selected.packageManager}
+                    </Chip>
                   )}
                 </div>
                 <div
@@ -509,50 +540,69 @@ function App() {
                 <div className="detail-actions">
                   {isRunning ? (
                     <>
-                      <button className="btn btn-danger" onClick={() => call("stop_project", { id: selected.id })}>
-                        <Square size={12} /> Stop
-                      </button>
-                      <button className="btn" onClick={() => call("restart_project", { id: selected.id })}>
-                        <RotateCw size={12} /> Restart
-                      </button>
+                      <Button
+                        size="sm"
+                        color="danger"
+                        variant="flat"
+                        startContent={<Square size={14} />}
+                        onPress={() => call("stop_project", { id: selected.id })}
+                      >
+                        Stop
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        startContent={<RotateCw size={14} />}
+                        onPress={() => call("restart_project", { id: selected.id })}
+                      >
+                        Restart
+                      </Button>
                     </>
                   ) : (
-                    <button
-                      className="btn btn-ok"
-                      onClick={() => start(selected)}
-                      disabled={
+                    <Button
+                      size="sm"
+                      color="primary"
+                      variant="flat"
+                      startContent={<Play size={14} />}
+                      onPress={() => start(selected)}
+                      isDisabled={
                         !selected.startCommand &&
                         selected.kind !== "static-site" &&
                         selected.kind !== "unknown"
                       }
-                      title={
-                        selected.startCommand ??
-                        (selected.kind === "static-site"
-                          ? "Serve with built-in static server"
-                          : selected.kind === "unknown"
-                            ? "Serve this folder as a file server"
-                            : "No start command detected")
-                      }
                     >
-                      <Play size={12} /> Start
-                    </button>
+                      Start
+                    </Button>
                   )}
                   {url && (
-                    <button className="btn" onClick={() => openUrl(url)}>
-                      <ExternalLink size={12} /> Open
-                    </button>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      startContent={<ExternalLink size={14} />}
+                      onPress={() => openUrl(url)}
+                    >
+                      Open
+                    </Button>
                   )}
-                  <button className="btn" onClick={() => invoke("open_folder", { path: selected.path })}>
-                    <FolderOpen size={12} /> Folder
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    style={{ marginLeft: "auto" }}
-                    onClick={() => remove(selected.id)}
-                    title="Remove from FoldDeck (files are kept)"
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    startContent={<FolderOpen size={14} />}
+                    onPress={() => invoke("open_folder", { path: selected.path })}
                   >
-                    <Trash2 size={12} /> Remove
-                  </button>
+                    Folder
+                  </Button>
+                  <Tooltip content="Remove from FoldDeck (files are kept)" size="sm">
+                    <Button
+                      size="sm"
+                      variant="light"
+                      className="ml-auto"
+                      startContent={<Trash2 size={14} />}
+                      onPress={() => remove(selected.id)}
+                    >
+                      Remove
+                    </Button>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -638,48 +688,55 @@ function App() {
         </>
       )}
 
-      {fileServerAsk && (
-        <div className="modal-backdrop" onClick={() => setFileServerAsk(null)}>
-          <div className="modal" role="dialog" aria-label="Serve folder" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <FolderOpen size={15} aria-hidden="true" />
-              <strong>Serve this folder?</strong>
-              <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={() => setFileServerAsk(null)}>
-                <X size={14} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>
-                <code>{fileServerAsk.name}</code> doesn't look like an app, but you can serve its
-                files over HTTP and browse them from a browser.
-              </p>
-              <div className="modal-choices">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    const p = fileServerAsk;
-                    setFileServerAsk(null);
-                    startFileServer(p.id, "builtin");
-                  }}
-                >
-                  Built-in file server
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    const p = fileServerAsk;
-                    setFileServerAsk(null);
+      <Modal
+        isOpen={!!fileServerAsk}
+        onClose={() => setFileServerAsk(null)}
+        size="md"
+        placement="center"
+        backdrop="opaque"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="modal-head-hero">
+                <FolderOpen size={16} aria-hidden="true" /> Serve this folder?
+              </ModalHeader>
+              <ModalBody>
+                <p>
+                  <code className="inline-code">{fileServerAsk?.name}</code> doesn't look like an
+                  app, but you can serve its files over HTTP and browse them from a browser.
+                </p>
+                <p className="dim" style={{ fontSize: "12.5px" }}>
+                  Your choice is remembered for this project — change it anytime in Settings →
+                  Servers.
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  variant="flat"
+                  onPress={() => {
+                    const p = fileServerAsk!;
+                    onClose();
                     startFileServer(p.id, "python");
                   }}
                 >
                   Python (http.server)
-                </button>
-              </div>
-              <p className="dim">Your choice is remembered for this project — change it anytime in Settings → Servers.</p>
-            </div>
-          </div>
-        </div>
-      )}
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={() => {
+                    const p = fileServerAsk!;
+                    onClose();
+                    startFileServer(p.id, "builtin");
+                  }}
+                >
+                  Built-in file server
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {dragging && <div className="drop-overlay">Drop folder to add</div>}
     </div>

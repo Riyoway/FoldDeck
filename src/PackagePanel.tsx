@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Button, Tooltip } from "@heroui/react";
 import { Download, Pin, Play, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { ProjectInfo } from "./App";
 import { confirmCommandAudit } from "./audit";
@@ -97,17 +98,30 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
       </div>
 
       <div className="pkg-actions">
-        <button className="btn" onClick={() => call("install_dependencies", { id: project.id })}>
-          <Download size={12} /> Install
-        </button>
+        <Button
+          size="sm"
+          variant="flat"
+          startContent={<Download size={14} />}
+          onPress={() => call("install_dependencies", { id: project.id })}
+        >
+          Install
+        </Button>
         {isNode && (
-          <button className="btn" onClick={reinstall}>
-            <RefreshCcw size={12} /> Reinstall
-          </button>
+          <Button size="sm" variant="flat" startContent={<RefreshCcw size={14} />} onPress={reinstall}>
+            Reinstall
+          </Button>
         )}
-        <button className="btn" onClick={runAudit} disabled={auditing} title={`Run ${rawAuditCommand}`}>
-          <ShieldAlert size={12} /> {auditing ? "Auditing…" : "Audit"}
-        </button>
+        <Tooltip content={`Run ${rawAuditCommand}`} size="sm">
+          <Button
+            size="sm"
+            variant="flat"
+            isLoading={auditing}
+            startContent={!auditing && <ShieldAlert size={14} />}
+            onPress={runAudit}
+          >
+            {auditing ? "Auditing…" : "Audit"}
+          </Button>
+        </Tooltip>
       </div>
 
       {audit && (
@@ -147,23 +161,25 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
                 <td className="pkg-script-name">{name}</td>
                 <td className="pkg-script-cmd">{cmd}</td>
                 <td className="pkg-script-btns">
-                  <button
-                    className="btn btn-ghost"
-                    title={`Run ${runCommand(pm, name)}`}
-                    onClick={() => runScript(name)}
-                  >
-                    <Play size={12} />
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    title="Set as start command"
-                    onClick={async () => {
-                      await call("set_start_command", { id: project.id, command: runCommand(pm, name) }, false);
-                      onChanged();
-                    }}
-                  >
-                    <Pin size={12} />
-                  </button>
+                  <Tooltip content={`Run ${runCommand(pm, name)}`} size="sm">
+                    <Button isIconOnly size="sm" variant="light" aria-label="Run script" onPress={() => runScript(name)}>
+                      <Play size={14} />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="Set as start command" size="sm">
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="light"
+                      aria-label="Set as start command"
+                      onPress={async () => {
+                        await call("set_start_command", { id: project.id, command: runCommand(pm, name) }, false);
+                        onChanged();
+                      }}
+                    >
+                      <Pin size={14} />
+                    </Button>
+                  </Tooltip>
                 </td>
               </tr>
             ))}

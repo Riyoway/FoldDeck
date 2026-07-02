@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Button, Chip } from "@heroui/react";
 import { Eye, EyeOff, FilePlus2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 
 interface EnvEntry {
@@ -127,9 +128,9 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
           </button>
         ))}
         {!hasEnv && hasExample && (
-          <button className="btn" onClick={createFromExample}>
-            <FilePlus2 size={12} /> Create .env from example
-          </button>
+          <Button size="sm" variant="flat" startContent={<FilePlus2 size={14} />} onPress={createFromExample}>
+            Create .env from example
+          </Button>
         )}
       </div>
 
@@ -149,9 +150,9 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
       {missingKeys.length > 0 && (
         <div className="env-missing">
           ⚠ Missing keys from example: {missingKeys.join(", ")}
-          <button className="btn" onClick={addMissingKeys}>
-            <Plus size={12} /> Add them
-          </button>
+          <Button size="sm" variant="flat" startContent={<Plus size={14} />} onPress={addMissingKeys}>
+            Add them
+          </Button>
         </div>
       )}
 
@@ -175,10 +176,15 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
             />
             {e.isSecret && (
               <>
-                <span className="tag tag-warn">secret</span>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() =>
+                <Chip size="sm" variant="flat" className="chip-warn">
+                  secret
+                </Chip>
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="light"
+                  aria-label={visible.has(i) ? "Hide value" : "Show value"}
+                  onPress={() =>
                     setVisible((prev) => {
                       const next = new Set(prev);
                       next.has(i) ? next.delete(i) : next.add(i);
@@ -186,43 +192,48 @@ export default function EnvEditor({ projectId, envFiles, onChanged }: Props) {
                     })
                   }
                 >
-                  {visible.has(i) ? <EyeOff size={13} /> : <Eye size={13} />}
-                </button>
+                  {visible.has(i) ? <EyeOff size={14} /> : <Eye size={14} />}
+                </Button>
               </>
             )}
-            <button
-              className="btn btn-ghost"
-              onClick={() => {
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              aria-label="Remove variable"
+              onPress={() => {
                 setEntries((prev) => prev.filter((_, j) => j !== i));
                 setDirty(true);
               }}
             >
-              <Trash2 size={13} />
-            </button>
+              <Trash2 size={14} />
+            </Button>
           </div>
         ))}
         {entries.length === 0 && <p className="dim">No entries.</p>}
       </div>
 
       <div className="env-foot">
-        <button
-          className="btn"
-          onClick={() => {
+        <Button
+          size="sm"
+          variant="flat"
+          startContent={<Plus size={14} />}
+          onPress={() => {
             setEntries((prev) => [...prev, { key: "", value: "", isSecret: false }]);
             setDirty(true);
           }}
         >
-          <Plus size={12} /> Add variable
-        </button>
+          Add variable
+        </Button>
         <span className="dim" style={{ marginLeft: "auto" }}>
           {saved ? "saved" : dirty ? "unsaved changes" : ""}
         </span>
-        <button className="btn" onClick={() => load(activeFile)}>
-          <RotateCcw size={12} /> Reload
-        </button>
-        <button className="btn btn-ok" onClick={save} disabled={!dirty}>
-          <Save size={12} /> Save
-        </button>
+        <Button size="sm" variant="flat" startContent={<RotateCcw size={14} />} onPress={() => load(activeFile)}>
+          Reload
+        </Button>
+        <Button size="sm" color="primary" variant="flat" isDisabled={!dirty} startContent={<Save size={14} />} onPress={save}>
+          Save
+        </Button>
       </div>
     </div>
   );

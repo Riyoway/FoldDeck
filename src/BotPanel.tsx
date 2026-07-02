@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button } from "@heroui/react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -83,15 +84,23 @@ export default function BotPanel({ project, status, logs }: Props) {
         <span className="info-val">{clientId ?? "not found in .env"}</span>
       </div>
       <div className="bot-actions">
-        <button
-          className="btn"
-          onClick={() => openUrl("https://discord.com/developers/applications")}
+        <Button
+          size="sm"
+          variant="flat"
+          startContent={<ExternalLink size={14} />}
+          onPress={() => openUrl("https://discord.com/developers/applications")}
         >
-          <ExternalLink size={12} /> Developer Portal
-        </button>
-        <button className="btn" onClick={copyInvite} disabled={!inviteUrl} title={inviteUrl ?? "Set CLIENT_ID in .env to generate an invite URL"}>
-          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy Invite URL"}
-        </button>
+          Developer Portal
+        </Button>
+        <Button
+          size="sm"
+          variant="flat"
+          isDisabled={!inviteUrl}
+          startContent={copied ? <Check size={14} /> : <Copy size={14} />}
+          onPress={copyInvite}
+        >
+          {copied ? "Copied" : "Copy Invite URL"}
+        </Button>
       </div>
     </div>
   );

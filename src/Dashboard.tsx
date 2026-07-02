@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button, Card, CardBody, Chip, Input, Tooltip } from "@heroui/react";
 import { AlertTriangle, Check, ExternalLink, Pencil, Play, Square, X } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
@@ -63,10 +64,12 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
       <div className="dash-inner">
         <div className="stats">
           {stats.map(([label, value, cls]) => (
-            <div className="stat" key={label}>
-              <div className={`stat-num ${cls}`}>{value}</div>
-              <div className="stat-label">{label}</div>
-            </div>
+            <Card key={label} shadow="none" radius="md" className="stat">
+              <CardBody className="stat-body">
+                <div className={`stat-num ${cls}`}>{value}</div>
+                <div className="stat-label">{label}</div>
+              </CardBody>
+            </Card>
           ))}
         </div>
 
@@ -92,7 +95,7 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                   onClick={() => onSelect(p.id)}
                 >
                   <div className="proj-card-head">
-                    <ProjectIcon project={p} size={17} />
+                    <ProjectIcon project={p} size={16} />
                     <span className="proj-card-name">{p.name}</span>
                     {p.warnings.length > 0 && (
                       <span className="proj-warn" title={`${p.warnings.length} warning(s)`}>
@@ -131,23 +134,36 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                   </div>
                   <div className="proj-card-actions" onClick={(e) => e.stopPropagation()}>
                     {isRunning ? (
-                      <button className="btn btn-danger" onClick={() => onStop(p.id)}>
-                        <Square size={12} /> Stop
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-ok"
-                        disabled={!canStart}
-                        title={canStart ? undefined : "No start command detected"}
-                        onClick={() => onStart(p)}
+                      <Button
+                        size="sm"
+                        color="danger"
+                        variant="flat"
+                        startContent={<Square size={14} />}
+                        onPress={() => onStop(p.id)}
                       >
-                        <Play size={12} /> Start
-                      </button>
+                        Stop
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        color="primary"
+                        variant="flat"
+                        isDisabled={!canStart}
+                        startContent={<Play size={14} />}
+                        onPress={() => onStart(p)}
+                      >
+                        Start
+                      </Button>
                     )}
                     {url && (
-                      <button className="btn" onClick={() => openUrl(url)}>
-                        <ExternalLink size={12} /> Open
-                      </button>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        startContent={<ExternalLink size={14} />}
+                        onPress={() => openUrl(url)}
+                      >
+                        Open
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -177,12 +193,14 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                       <td className="col-port">
                         {editing ? (
                           <span onClick={(e) => e.stopPropagation()}>
-                            <input
-                              className="port-input"
+                            <Input
+                              size="sm"
+                              variant="bordered"
+                              className="port-input-hero"
                               value={portDraft}
                               autoFocus
                               placeholder="auto"
-                              onChange={(e) => setPortDraft(e.target.value)}
+                              onValueChange={setPortDraft}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") savePort(p.projectId);
                                 if (e.key === "Escape") setEditingPort(null);
@@ -192,7 +210,11 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                         ) : (
                           <>
                             :{p.port}
-                            {p.overridden && <span className="tag tag-dim port-tag">custom</span>}
+                            {p.overridden && (
+                              <Chip size="sm" variant="flat" className="port-tag">
+                                custom
+                              </Chip>
+                            )}
                           </>
                         )}
                       </td>
@@ -211,24 +233,28 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                       <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                         {editing ? (
                           <>
-                            <button className="btn btn-ghost" title="Save" onClick={() => savePort(p.projectId)}>
-                              <Check size={13} />
-                            </button>
-                            <button className="btn btn-ghost" title="Cancel" onClick={() => setEditingPort(null)}>
-                              <X size={13} />
-                            </button>
+                            <Button isIconOnly size="sm" variant="light" aria-label="Save" onPress={() => savePort(p.projectId)}>
+                              <Check size={14} />
+                            </Button>
+                            <Button isIconOnly size="sm" variant="light" aria-label="Cancel" onPress={() => setEditingPort(null)}>
+                              <X size={14} />
+                            </Button>
                           </>
                         ) : (
-                          <button
-                            className="btn btn-ghost"
-                            title="Override port (sets PORT on start; clear for auto)"
-                            onClick={() => {
-                              setEditingPort(p.projectId);
-                              setPortDraft(p.overridden ? String(p.port) : "");
-                            }}
-                          >
-                            <Pencil size={13} />
-                          </button>
+                          <Tooltip content="Override port (sets PORT on start; clear for auto)" size="sm">
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="light"
+                              aria-label="Edit port"
+                              onPress={() => {
+                                setEditingPort(p.projectId);
+                                setPortDraft(p.overridden ? String(p.port) : "");
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                          </Tooltip>
                         )}
                       </td>
                     </tr>

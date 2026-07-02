@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button, Switch, Tab, Tabs } from "@heroui/react";
 import { FolderOpen, RotateCcw } from "lucide-react";
 import { applyUiZoom, getSetting, setSetting } from "./settings";
 
@@ -30,7 +31,7 @@ const ZOOM_LEVELS: [number, string][] = [
   [1.25, "125%"],
 ];
 
-function Toggle({
+function SettingToggle({
   label,
   description,
   settingKey,
@@ -46,17 +47,16 @@ function Toggle({
         <div className="settings-label">{label}</div>
         <div className="settings-desc">{description}</div>
       </div>
-      <button
-        className={`switch ${on ? "switch-on" : ""}`}
-        role="switch"
-        aria-checked={on}
-        onClick={() => {
-          setSetting(settingKey, !on);
-          setOn(!on);
+      <Switch
+        size="sm"
+        color="primary"
+        isSelected={on}
+        onValueChange={(v) => {
+          setSetting(settingKey, v);
+          setOn(v);
         }}
-      >
-        <span className="switch-knob" />
-      </button>
+        aria-label={label}
+      />
     </div>
   );
 }
@@ -108,17 +108,16 @@ export default function SettingsPage() {
                 <div className="settings-label">Text size</div>
                 <div className="settings-desc">Scales the entire interface.</div>
               </div>
-              <div className="segmented">
+              <Tabs
+                size="sm"
+                aria-label="Text size"
+                selectedKey={String(zoom)}
+                onSelectionChange={(k) => changeZoom(Number(k))}
+              >
                 {ZOOM_LEVELS.map(([z, label]) => (
-                  <button
-                    key={z}
-                    className={`segmented-item ${zoom === z ? "segmented-active" : ""}`}
-                    onClick={() => changeZoom(z)}
-                  >
-                    {label}
-                  </button>
+                  <Tab key={String(z)} title={label} />
                 ))}
-              </div>
+              </Tabs>
             </div>
           </>
         )}
@@ -126,7 +125,7 @@ export default function SettingsPage() {
         {section === "safety" && (
           <>
             <h2>Safety</h2>
-            <Toggle
+            <SettingToggle
               settingKey="commandAuditConfirm"
               label="Confirm flagged commands"
               description="Ask before running commands that look dangerous (remote script piping, recursive deletes, tokens in arguments)."
@@ -137,7 +136,7 @@ export default function SettingsPage() {
         {section === "logs" && (
           <>
             <h2>Logs</h2>
-            <Toggle
+            <SettingToggle
               settingKey="logAutoScroll"
               label="Auto-scroll logs"
               description="Keep the log view pinned to the newest line while a project is running."
@@ -157,20 +156,20 @@ export default function SettingsPage() {
                   Projects that already chose a server keep their choice.
                 </div>
               </div>
-              <div className="segmented">
+              <Tabs
+                size="sm"
+                aria-label="File server default"
+                selectedKey={fileServer}
+                onSelectionChange={(k) => {
+                  const v = k as "ask" | "builtin" | "python";
+                  setSetting("fileServerDefault", v);
+                  setFileServer(v);
+                }}
+              >
                 {FILE_SERVER_OPTIONS.map(([value, label]) => (
-                  <button
-                    key={value}
-                    className={`segmented-item ${fileServer === value ? "segmented-active" : ""}`}
-                    onClick={() => {
-                      setSetting("fileServerDefault", value);
-                      setFileServer(value);
-                    }}
-                  >
-                    {label}
-                  </button>
+                  <Tab key={value} title={label} />
                 ))}
-              </div>
+              </Tabs>
             </div>
           </>
         )}
@@ -189,15 +188,22 @@ export default function SettingsPage() {
                 {recipeMsg && <div className="settings-desc ok-text">{recipeMsg}</div>}
               </div>
               <div className="settings-btns">
-                <button
-                  className="btn"
-                  onClick={() => paths && invoke("open_folder", { path: paths.recipes })}
+                <Button
+                  size="sm"
+                  variant="flat"
+                  startContent={<FolderOpen size={14} />}
+                  onPress={() => paths && invoke("open_folder", { path: paths.recipes })}
                 >
-                  <FolderOpen size={13} /> Open folder
-                </button>
-                <button className="btn" onClick={reloadRecipes}>
-                  <RotateCcw size={13} /> Reload
-                </button>
+                  Open folder
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  startContent={<RotateCcw size={14} />}
+                  onPress={reloadRecipes}
+                >
+                  Reload
+                </Button>
               </div>
             </div>
           </>
@@ -213,12 +219,14 @@ export default function SettingsPage() {
                 {paths && <div className="settings-path">{paths.appData}</div>}
               </div>
               <div className="settings-btns">
-                <button
-                  className="btn"
-                  onClick={() => paths && invoke("open_folder", { path: paths.appData })}
+                <Button
+                  size="sm"
+                  variant="flat"
+                  startContent={<FolderOpen size={14} />}
+                  onPress={() => paths && invoke("open_folder", { path: paths.appData })}
                 >
-                  <FolderOpen size={13} /> Open folder
-                </button>
+                  Open folder
+                </Button>
               </div>
             </div>
           </>
@@ -235,9 +243,9 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="settings-btns">
-                <button className="btn" onClick={() => openUrl("https://github.com/Riyoway/FoldDeck")}>
+                <Button size="sm" variant="flat" onPress={() => openUrl("https://github.com/Riyoway/FoldDeck")}>
                   GitHub
-                </button>
+                </Button>
               </div>
             </div>
           </>
