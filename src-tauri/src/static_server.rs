@@ -82,8 +82,19 @@ fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+/// Percent-encodes everything outside the URL unreserved set (keeping `/` as
+/// the path separator), so filenames can never break out of href attributes.
 fn href_encode(s: &str) -> String {
-    s.replace('%', "%25").replace('#', "%23").replace('?', "%3F").replace(' ', "%20")
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
 }
 
 fn human_size(bytes: u64) -> String {
@@ -255,5 +266,15 @@ mod tests {
         assert!(html.contains("a b.txt"));
         assert!(html.contains("href=\"/sub/a%20b.txt\""));
         assert!(html.contains("../"));
+    }
+
+    #[test]
+    fn href_encode_neutralizes_html_dangerous_chars() {
+        let encoded = href_encode("a\"b<c>&'d e#f%g?.txt");
+        for c in ['"', '<', '>', '&', '\'', ' ', '#', '?'] {
+            assert!(!encoded.contains(c), "unencoded {:?} in {}", c, encoded);
+        }
+        assert_eq!(href_encode("sub/a b.txt"), "sub/a%20b.txt");
+        assert_eq!(href_encode("100%.txt"), "100%25.txt");
     }
 }
