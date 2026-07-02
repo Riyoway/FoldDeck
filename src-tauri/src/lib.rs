@@ -22,6 +22,8 @@ struct StoredProject {
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    file_server: Option<String>,
 }
 
 pub struct AppState {
@@ -44,7 +46,13 @@ fn load_store(store: &Path) -> Vec<StoredProject> {
         .map(|paths| {
             paths
                 .into_iter()
-                .map(|path| StoredProject { path, start_command: None, name: None, port: None })
+                .map(|path| StoredProject {
+                    path,
+                    start_command: None,
+                    name: None,
+                    port: None,
+                    file_server: None,
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -81,6 +89,10 @@ fn project_info_with(stored: &StoredProject, recipes: &[recipes::Recipe]) -> Pro
     if stored.port.is_some() {
         info.default_port = stored.port;
     }
+    info.file_server = stored.file_server.clone();
+    if info.kind == "unknown" && info.file_server.is_some() && info.framework.is_none() {
+        info.framework = Some("File Server".into());
+    }
     if let (Some(cmd), Some(pm)) = (&info.start_command, &info.package_manager) {
         let first = cmd.split_whitespace().next().unwrap_or("");
         if ["npm", "pnpm", "yarn", "bun"].contains(&first) && first != pm {
@@ -111,7 +123,13 @@ fn add_project(path: String, state: tauri::State<AppState>) -> Result<ProjectInf
     let id = project_id(&path);
     let mut projects = state.projects.lock().unwrap();
     if !projects.iter().any(|p| project_id(&p.path) == id) {
-        projects.push(StoredProject { path: path.clone(), start_command: None, name: None, port: None });
+        projects.push(StoredProject {
+            path: path.clone(),
+            start_command: None,
+            name: None,
+            port: None,
+            file_server: None,
+        });
         save_store(&state.store_path, &projects);
     }
     Ok(detect(&path))
@@ -182,6 +200,60 @@ fn set_project_port(
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     update_stored(&state, &id, |p| p.port = port)
+}
+
+#[tauri::command]
+fn set_file_server(
+    id: String,
+    mode: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    if let Some(m) = &mode {
+        if m != "builtin" && m != "python" {
+            return Err(format!("Unknown file server mode: {}", m));
+        }
+    }
+    update_stored(&state, &id, |p| p.file_server = mode)
+}
+
+/// Serves an unrecognized folder as a file server (built-in listing server or
+/// python -m http.server), remembering the chosen mode.
+#[tauri::command]
+fn start_file_server(
+    id: String,
+    mode: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    update_stored(&state, &id, |p| p.file_server = Some(mode.clone()))?;
+    let stored = find_stored(&state, &id)?;
+    let info = project_info(&state, &stored);
+    match mode.as_str() {
+        "builtin" => state.manager.start_static(&app, &info),
+        "python" => {
+            let port = stored.port.unwrap_or(8000);
+            let cmd = format!("python -m http.server {} --bind 127.0.0.1", port);
+            state.manager.start(&app, &info, &cmd, &[])
+        }
+        other => Err(format!("Unknown file server mode: {}", other)),
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RequestBucket {
+    minute: u64,
+    count: u32,
+}
+
+#[tauri::command]
+fn get_request_stats(id: String, state: tauri::State<AppState>) -> Vec<RequestBucket> {
+    state
+        .manager
+        .request_stats(&id)
+        .into_iter()
+        .map(|(minute, count)| RequestBucket { minute, count })
+        .collect()
 }
 
 #[derive(Serialize)]
@@ -433,6 +505,9 @@ pub fn run() {
             set_start_command,
             set_project_name,
             set_project_port,
+            set_file_server,
+            start_file_server,
+            get_request_stats,
             get_ports_overview,
             start_project,
             stop_project,

@@ -26,6 +26,8 @@ import LogView from "./LogView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
+import ProjectIcon from "./ProjectIcon";
+import RequestChart from "./RequestChart";
 import SettingsPage from "./SettingsPage";
 import Sidebar from "./Sidebar";
 import { confirmCommandAudit } from "./audit";
@@ -49,6 +51,8 @@ export interface ProjectInfo {
   envFiles: string[];
   lockfiles: string[];
   depsInstalled?: boolean | null;
+  iconDataUri?: string | null;
+  fileServer?: string | null;
   warnings: string[];
 }
 
@@ -85,6 +89,7 @@ function App() {
   const [nameDraft, setNameDraft] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getSetting("sidebarCollapsed"));
   const [sidebarWidth, setSidebarWidth] = useState(getSetting("sidebarWidth"));
+  const [fileServerAsk, setFileServerAsk] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -209,10 +214,28 @@ function App() {
     }
   };
 
-  const start = async (id: string, command?: string | null) => {
-    if (command && !(await confirmCommandAudit(command))) return;
+  const startFileServer = async (id: string, mode: string) => {
     setLogs((prev) => ({ ...prev, [id]: [] }));
-    await call("start_project", { id });
+    await call("start_file_server", { id, mode });
+    await refreshProjects();
+    setTab("logs");
+  };
+
+  const start = async (p: ProjectInfo) => {
+    // Unrecognized folders are served as a file server; ask once if not configured.
+    if (p.kind === "unknown" && !p.startCommand) {
+      const globalDefault = getSetting("fileServerDefault");
+      const mode = p.fileServer ?? (globalDefault !== "ask" ? globalDefault : null);
+      if (!mode) {
+        setFileServerAsk(p);
+        return;
+      }
+      await startFileServer(p.id, mode);
+      return;
+    }
+    if (p.startCommand && !(await confirmCommandAudit(p.startCommand))) return;
+    setLogs((prev) => ({ ...prev, [p.id]: [] }));
+    await call("start_project", { id: p.id });
     setTab("logs");
   };
 
@@ -379,6 +402,7 @@ function App() {
                     </>
                   ) : (
                     <>
+                      <ProjectIcon project={selected} size={18} />
                       <span className="detail-name">{selected.name}</span>
                       <button
                         className="btn btn-ghost"
@@ -438,6 +462,10 @@ function App() {
                   )}
                   {selected.startCommand && <code className="dim">{selected.startCommand}</code>}
                 </div>
+                {(["web-app", "backend-server", "static-site", "docker-compose"].includes(selected.kind) ||
+                  (selected.kind === "unknown" && (isRunning || selected.fileServer))) && (
+                  <RequestChart key={selected.id} projectId={selected.id} running={isRunning} />
+                )}
                 {selected.warnings.length > 0 && (
                   <div className="detail-warnings">
                     {selected.warnings.map((w, i) => (
@@ -458,13 +486,19 @@ function App() {
                   ) : (
                     <button
                       className="btn btn-ok"
-                      onClick={() => start(selected.id, selected.startCommand)}
-                      disabled={!selected.startCommand && selected.kind !== "static-site"}
+                      onClick={() => start(selected)}
+                      disabled={
+                        !selected.startCommand &&
+                        selected.kind !== "static-site" &&
+                        selected.kind !== "unknown"
+                      }
                       title={
                         selected.startCommand ??
                         (selected.kind === "static-site"
                           ? "Serve with built-in static server"
-                          : "No start command detected")
+                          : selected.kind === "unknown"
+                            ? "Serve this folder as a file server"
+                            : "No start command detected")
                       }
                     >
                       <Play size={12} /> Start
@@ -567,6 +601,49 @@ function App() {
         </main>
       </div>
         </>
+      )}
+
+      {fileServerAsk && (
+        <div className="modal-backdrop" onClick={() => setFileServerAsk(null)}>
+          <div className="modal" role="dialog" aria-label="Serve folder" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <FolderOpen size={15} aria-hidden="true" />
+              <strong>Serve this folder?</strong>
+              <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={() => setFileServerAsk(null)}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>
+                <code>{fileServerAsk.name}</code> doesn't look like an app, but you can serve its
+                files over HTTP and browse them from a browser.
+              </p>
+              <div className="modal-choices">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const p = fileServerAsk;
+                    setFileServerAsk(null);
+                    startFileServer(p.id, "builtin");
+                  }}
+                >
+                  Built-in file server
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    const p = fileServerAsk;
+                    setFileServerAsk(null);
+                    startFileServer(p.id, "python");
+                  }}
+                >
+                  Python (http.server)
+                </button>
+              </div>
+              <p className="dim">Your choice is remembered for this project — change it anytime in Settings → Servers.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {dragging && <div className="drop-overlay">Drop folder to add</div>}

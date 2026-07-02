@@ -22,6 +22,10 @@ pub struct ProjectInfo {
     pub env_files: Vec<String>,
     pub lockfiles: Vec<String>,
     pub deps_installed: Option<bool>,
+    /// Site favicon as a data URI (web-app / static-site only).
+    pub icon_data_uri: Option<String>,
+    /// File-server mode chosen for unrecognized folders ("builtin" | "python").
+    pub file_server: Option<String>,
     pub warnings: Vec<String>,
 }
 
@@ -52,6 +56,47 @@ const PY_DISCORD_MARKERS: &[&str] = &[
 ];
 
 pub fn detect(path: &str) -> ProjectInfo {
+    let mut info = classify(path);
+    if matches!(info.kind.as_str(), "web-app" | "static-site") {
+        info.icon_data_uri = find_favicon(Path::new(path));
+    }
+    info
+}
+
+const FAVICON_PATHS: &[&str] = &[
+    "favicon.ico",
+    "favicon.svg",
+    "favicon.png",
+    "public/favicon.ico",
+    "public/favicon.svg",
+    "public/favicon.png",
+    "app/favicon.ico",
+    "src/app/favicon.ico",
+    "static/favicon.ico",
+    "static/favicon.png",
+];
+
+fn find_favicon(dir: &Path) -> Option<String> {
+    use base64::Engine;
+    for rel in FAVICON_PATHS {
+        let path = dir.join(rel);
+        let Ok(meta) = path.metadata() else { continue };
+        if !meta.is_file() || meta.len() > 128 * 1024 {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(&path) else { continue };
+        let mime = match path.extension().and_then(|e| e.to_str()) {
+            Some("svg") => "image/svg+xml",
+            Some("png") => "image/png",
+            _ => "image/x-icon",
+        };
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        return Some(format!("data:{};base64,{}", mime, b64));
+    }
+    None
+}
+
+fn classify(path: &str) -> ProjectInfo {
     let dir = Path::new(path);
     let name = dir
         .file_name()
@@ -77,6 +122,8 @@ pub fn detect(path: &str) -> ProjectInfo {
             .collect(),
         lockfiles: Vec::new(),
         deps_installed: None,
+        icon_data_uri: None,
+        file_server: None,
         warnings: Vec::new(),
     };
 

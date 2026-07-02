@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GripVertical, LayoutDashboard, Plus } from "lucide-react";
+import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
 interface Props {
@@ -135,6 +136,7 @@ export default function Sidebar({
                   <GripVertical size={13} />
                 </span>
                 <span className={`st ${running ? "st-on" : ""}`} />
+                <ProjectIcon project={p} size={14} />
                 <span className="row-name">{p.name}</span>
                 {p.warnings.length > 0 && <span className="row-warn">{p.warnings.length}</span>}
                 <span className="row-fw">{p.framework ?? p.kind}</span>

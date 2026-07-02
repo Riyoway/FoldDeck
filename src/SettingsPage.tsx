@@ -5,15 +5,22 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { FolderOpen, RotateCcw } from "lucide-react";
 import { applyUiZoom, getSetting, setSetting } from "./settings";
 
-type Section = "appearance" | "safety" | "logs" | "recipes" | "storage" | "about";
+type Section = "appearance" | "safety" | "logs" | "servers" | "recipes" | "storage" | "about";
 
 const SECTIONS: [Section, string][] = [
   ["appearance", "Appearance"],
   ["safety", "Safety"],
   ["logs", "Logs"],
+  ["servers", "Servers"],
   ["recipes", "Recipes"],
   ["storage", "Storage"],
   ["about", "About"],
+];
+
+const FILE_SERVER_OPTIONS: ["ask" | "builtin" | "python", string][] = [
+  ["ask", "Ask every time"],
+  ["builtin", "Built-in"],
+  ["python", "Python"],
 ];
 
 const ZOOM_LEVELS: [number, string][] = [
@@ -60,6 +67,7 @@ export default function SettingsPage() {
   const [version, setVersion] = useState("");
   const [recipeMsg, setRecipeMsg] = useState<string | null>(null);
   const [zoom, setZoom] = useState(getSetting("uiZoom"));
+  const [fileServer, setFileServer] = useState(getSetting("fileServerDefault"));
 
   useEffect(() => {
     invoke<{ appData: string; recipes: string }>("get_app_paths").then(setPaths);
@@ -134,6 +142,36 @@ export default function SettingsPage() {
               label="Auto-scroll logs"
               description="Keep the log view pinned to the newest line while a project is running."
             />
+          </>
+        )}
+
+        {section === "servers" && (
+          <>
+            <h2>Servers</h2>
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <div className="settings-label">Unrecognized folders</div>
+                <div className="settings-desc">
+                  How to serve folders FoldDeck can't identify (loose images, videos, files).
+                  Built-in serves a file browser; Python runs <code>python -m http.server</code>.
+                  Projects that already chose a server keep their choice.
+                </div>
+              </div>
+              <div className="segmented">
+                {FILE_SERVER_OPTIONS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={`segmented-item ${fileServer === value ? "segmented-active" : ""}`}
+                    onClick={() => {
+                      setSetting("fileServerDefault", value);
+                      setFileServer(value);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </>
         )}
 

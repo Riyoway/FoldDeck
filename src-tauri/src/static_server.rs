@@ -68,6 +68,89 @@ pub fn resolve_path(root: &Path, raw: &str) -> Option<PathBuf> {
     canon.is_file().then_some(canon)
 }
 
+/// The directory itself, if the request path is a dir under `root` (no index.html check).
+fn resolve_dir(root: &Path, raw: &str) -> Option<PathBuf> {
+    let path = raw.split(['?', '#']).next().unwrap_or("/");
+    let decoded = percent_decode(path);
+    let rel = decoded.trim_start_matches('/');
+    let canon = root.join(rel).canonicalize().ok()?;
+    let root_canon = root.canonicalize().ok()?;
+    (canon.starts_with(&root_canon) && canon.is_dir()).then_some(canon)
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+fn href_encode(s: &str) -> String {
+    s.replace('%', "%25").replace('#', "%23").replace('?', "%3F").replace(' ', "%20")
+}
+
+fn human_size(bytes: u64) -> String {
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes >= 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else if bytes >= 1024 {
+        format!("{:.0} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// File-browser page for folders with no index.html (FoldDeck's file-server mode).
+fn listing_html(dir: &Path, url_path: &str) -> String {
+    let mut dirs: Vec<(String, u64)> = Vec::new();
+    let mut files: Vec<(String, u64)> = Vec::new();
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let meta = entry.metadata().ok();
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        if meta.map(|m| m.is_dir()).unwrap_or(false) {
+            dirs.push((name, 0));
+        } else {
+            files.push((name, size));
+        }
+    }
+    dirs.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    files.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+
+    let base = if url_path.ends_with('/') { url_path.to_string() } else { format!("{}/", url_path) };
+    let mut rows = String::new();
+    if url_path != "/" {
+        rows.push_str("<tr><td colspan=\"2\"><a class=\"d\" href=\"../\">../</a></td></tr>");
+    }
+    for (name, _) in &dirs {
+        rows.push_str(&format!(
+            "<tr><td><a class=\"d\" href=\"{}{}/\">{}/</a></td><td></td></tr>",
+            href_encode(&base),
+            href_encode(name),
+            html_escape(name)
+        ));
+    }
+    for (name, size) in &files {
+        rows.push_str(&format!(
+            "<tr><td><a href=\"{}{}\">{}</a></td><td>{}</td></tr>",
+            href_encode(&base),
+            href_encode(name),
+            html_escape(name),
+            human_size(*size)
+        ));
+    }
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>{title}</title><style>\
+body{{background:#0d1117;color:#e6edf3;font:14px/1.6 'Segoe UI',sans-serif;max-width:860px;margin:0 auto;padding:24px}}\
+h1{{font-size:16px;font-family:Consolas,monospace;border-bottom:1px solid #21262d;padding-bottom:10px}}\
+table{{border-collapse:collapse;width:100%;font-family:Consolas,monospace;font-size:13px}}\
+td{{padding:6px 8px;border-bottom:1px solid #21262d}}td:last-child{{color:#8b949e;text-align:right;white-space:nowrap}}\
+a{{color:#58a6ff;text-decoration:none}}a:hover{{text-decoration:underline}}a.d{{color:#e6edf3;font-weight:600}}\
+footer{{color:#8b949e;font-size:11px;margin-top:16px}}</style></head><body>\
+<h1>{title}</h1><table>{rows}</table><footer>FoldDeck file server</footer></body></html>",
+        title = html_escape(url_path),
+        rows = rows
+    )
+}
+
 fn handle(stream: &mut TcpStream, root: &Path) -> (String, u16) {
     let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
     let mut request_line = String::new();
@@ -99,6 +182,21 @@ fn handle(stream: &mut TcpStream, root: &Path) -> (String, u16) {
             let _ = stream.write_all(head.as_bytes());
             if method == "GET" {
                 let _ = stream.write_all(&body);
+            }
+            (format!("{} {}", method, raw_path), 200)
+        }
+        // Directory without index.html → serve a file-browser listing.
+        None if resolve_dir(root, raw_path).is_some() => {
+            let dir = resolve_dir(root, raw_path).unwrap();
+            let url_path = percent_decode(raw_path.split(['?', '#']).next().unwrap_or("/"));
+            let body = listing_html(&dir, &url_path);
+            let head = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\ncontent-length: {}\r\ncache-control: no-cache\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            if method == "GET" {
+                let _ = stream.write_all(body.as_bytes());
             }
             (format!("{} {}", method, raw_path), 200)
         }
@@ -148,5 +246,14 @@ mod tests {
         assert!(resolve_path(&dir, "/sub/a%20b.txt").is_some());
         assert!(resolve_path(&dir, "/missing.html").is_none());
         assert!(resolve_path(&dir, "/../../windows/system32/cmd.exe").is_none());
+
+        // Directory listing: /sub has no index.html → dir resolves, traversal blocked.
+        assert!(resolve_path(&dir, "/sub").is_none());
+        assert!(resolve_dir(&dir, "/sub").is_some());
+        assert!(resolve_dir(&dir, "/../../").is_none());
+        let html = listing_html(&dir.join("sub"), "/sub");
+        assert!(html.contains("a b.txt"));
+        assert!(html.contains("href=\"/sub/a%20b.txt\""));
+        assert!(html.contains("../"));
     }
 }

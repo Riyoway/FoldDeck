@@ -44,6 +44,8 @@ struct ProjectRuntime {
     crash_count: Arc<AtomicU32>,
     last_exit_code: Option<i32>,
     last_stopped_at: Option<u64>,
+    /// (epoch minute, request count) rolling buckets parsed from log output.
+    requests: Arc<Mutex<VecDeque<(u64, u32)>>>,
 }
 
 impl Default for ProjectRuntime {
@@ -54,6 +56,7 @@ impl Default for ProjectRuntime {
             crash_count: Arc::new(AtomicU32::new(0)),
             last_exit_code: None,
             last_stopped_at: None,
+            requests: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 }
@@ -95,6 +98,25 @@ fn collect_secrets(project: &ProjectInfo) -> Vec<String> {
         }
     }
     secrets
+}
+
+const REQUEST_MARKERS: &[&str] = &["GET /", "POST /", "PUT /", "DELETE /", "PATCH /", "HEAD /", "OPTIONS /"];
+
+/// Heuristic: log lines that look like an HTTP access-log entry.
+pub fn is_request_line(line: &str) -> bool {
+    REQUEST_MARKERS.iter().any(|m| line.contains(m))
+}
+
+fn record_request(buckets: &Mutex<VecDeque<(u64, u32)>>) {
+    let minute = now_secs() / 60;
+    let mut b = buckets.lock().unwrap();
+    match b.back_mut() {
+        Some((m, n)) if *m == minute => *n += 1,
+        _ => b.push_back((minute, 1)),
+    }
+    while b.front().map(|(m, _)| minute - m > 120).unwrap_or(false) {
+        b.pop_front();
+    }
 }
 
 fn mask_secrets(line: &str, secrets: &[String]) -> String {
@@ -185,10 +207,14 @@ impl ProcessManager {
             let logs = runtime.logs.clone();
             let secrets = secrets.clone();
             let url_slot = url_slot.clone();
+            let requests = runtime.requests.clone();
             std::thread::spawn(move || {
                 let reader = BufReader::new(pipe);
                 for line in reader.lines().map_while(Result::ok) {
                     let line = mask_secrets(&line, &secrets);
+                    if is_request_line(&line) {
+                        record_request(&requests);
+                    }
                     if url_slot.lock().unwrap().is_none() {
                         if let Some(url) = extract_local_url(&line) {
                             *url_slot.lock().unwrap() = Some(url.clone());
@@ -291,6 +317,7 @@ impl ProcessManager {
         let root = std::path::PathBuf::from(&project.path);
         let id = project.id.clone();
         let logs = runtime.logs.clone();
+        let requests = runtime.requests.clone();
         let srv_app = app.clone();
         std::thread::spawn(move || {
             let app = srv_app;
@@ -298,6 +325,9 @@ impl ProcessManager {
                 let log_app = app.clone();
                 let log_id = id.clone();
                 crate::static_server::run(root, listener, stop, move |line| {
+                    if is_request_line(&line) {
+                        record_request(&requests);
+                    }
                     {
                         let mut logs = logs.lock().unwrap();
                         if logs.len() >= LOG_BUFFER_LINES {
@@ -379,6 +409,15 @@ impl ProcessManager {
         Ok(())
     }
 
+    pub fn request_stats(&self, id: &str) -> Vec<(u64, u32)> {
+        self.projects
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|rt| rt.requests.lock().unwrap().iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     pub fn logs(&self, id: &str) -> Vec<String> {
         self.projects
             .lock()
@@ -438,6 +477,14 @@ mod tests {
             mask_secrets("Logged in with token abc.def.ghi ok", &secrets),
             "Logged in with token •••••••• ok"
         );
+    }
+
+    #[test]
+    fn detects_request_lines() {
+        assert!(is_request_line("GET /api/users 200 12ms"));
+        assert!(is_request_line("::1 - - [01/Jul/2026] \"POST /login HTTP/1.1\" 302"));
+        assert!(!is_request_line("Compiled successfully in 300ms"));
+        assert!(!is_request_line("GETTING started"));
     }
 
     #[test]

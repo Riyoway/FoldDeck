@@ -6,6 +6,7 @@ type Settings = {
   uiZoom: number;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  fileServerDefault: "ask" | "builtin" | "python";
 };
 
 const DEFAULTS: Settings = {
@@ -14,6 +15,7 @@ const DEFAULTS: Settings = {
   uiZoom: 1,
   sidebarWidth: 288,
   sidebarCollapsed: false,
+  fileServerDefault: "ask",
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Check, Pencil, Play, Square, X } from "lucide-react";
+import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
 interface PortInfo {
@@ -17,7 +18,7 @@ interface Props {
   projects: ProjectInfo[];
   statuses: Record<string, ProjectStatus>;
   onSelect: (id: string) => void;
-  onStart: (id: string, command?: string | null) => void;
+  onStart: (project: ProjectInfo) => void;
   onStop: (id: string) => void;
   onChanged: () => void;
 }
@@ -85,7 +86,12 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                   <td className="dash-st">
                     <span className={`st ${isRunning ? "st-on" : ""}`} />
                   </td>
-                  <td className="dash-name">{p.name}</td>
+                  <td className="dash-name">
+                    <span className="dash-name-inner">
+                      <ProjectIcon project={p} size={14} />
+                      {p.name}
+                    </span>
+                  </td>
                   <td className="dash-fw dim">{p.framework ?? p.kind}</td>
                   <td className="dash-url">
                     {isRunning && st?.url ? (
@@ -114,9 +120,14 @@ export default function Dashboard({ projects, statuses, onSelect, onStart, onSto
                     ) : (
                       <button
                         className="btn btn-ghost"
-                        title={p.startCommand ?? (p.kind === "static-site" ? "Serve" : "No start command")}
-                        disabled={!p.startCommand && p.kind !== "static-site"}
-                        onClick={() => onStart(p.id, p.startCommand)}
+                        title={
+                          p.startCommand ??
+                          (p.kind === "static-site" || p.kind === "unknown"
+                            ? "Serve"
+                            : "No start command")
+                        }
+                        disabled={!p.startCommand && p.kind !== "static-site" && p.kind !== "unknown"}
+                        onClick={() => onStart(p)}
                       >
                         <Play size={12} />
                       </button>
