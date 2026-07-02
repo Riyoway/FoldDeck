@@ -183,7 +183,10 @@ function App() {
     };
     const unlisten = [
       appWindow.onMoved(async ({ payload }) => {
-        if (await appWindow.isMaximized()) return;
+        // Windows parks minimized windows at ~(-32000, -32000). Repositioning
+        // then corrupts the window and it restores transparent — never clamp.
+        if (payload.y <= -30000) return;
+        if ((await appWindow.isMinimized()) || (await appWindow.isMaximized())) return;
         const mon = await currentMonitor();
         const top = mon ? mon.position.y : 0;
         if (payload.y < top) await appWindow.setPosition(new PhysicalPosition(payload.x, top));
