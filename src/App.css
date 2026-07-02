@@ -11,8 +11,8 @@
   --accent: #e4e4e7;
   --accent-emphasis: #d4d4d8;
   --accent-soft: rgba(255, 255, 255, 0.08);
-  --green: #d4d4d8;
-  --green-emphasis: #e4e4e7;
+  --green: #3fb950;
+  --green-emphasis: #238636;
   --red: #d1565a;
   --red-emphasis: #c9484c;
   --amber: #a7a29a;
@@ -371,7 +371,7 @@ body.dragging-row * {
 .st-on {
   background: var(--green);
   border-color: var(--green);
-  box-shadow: 0 0 6px rgba(228, 228, 231, 0.55);
+  box-shadow: 0 0 6px rgba(63, 185, 80, 0.55);
 }
 
 .row-name {
@@ -924,8 +924,9 @@ body.resizing-v {
 .settings-content {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 32px 56px;
-  max-width: 780px;
+  padding: 18px 40px 56px;
+  max-width: 920px;
+  margin-inline: auto;
 }
 
 .settings h2 {
@@ -1064,13 +1065,15 @@ body.resizing-v {
 }
 
 .dash-inner {
-  max-width: 1180px;
+  max-width: 1680px;
+  margin-inline: auto;
 }
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
+  max-width: 1120px;
 }
 
 .stat {
@@ -1266,6 +1269,16 @@ body.resizing-v {
 
 .chip-warn {
   color: var(--amber);
+}
+
+/* Green CTA (Add folder) — the one intentional color besides danger red. */
+.btn-green {
+  background-color: #238636 !important;
+  color: #fff !important;
+}
+
+.btn-green:hover {
+  background-color: #2ea043 !important;
 }
 
 .inline-code {

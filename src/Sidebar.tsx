@@ -103,9 +103,9 @@ export default function Sidebar({
     <aside className="sidebar" style={{ width }}>
       <div className="sidebar-actions">
         <Button
-          color="primary"
           size="md"
           fullWidth
+          className="btn-green"
           startContent={<Plus size={14} />}
           onPress={onAddFolder}
         >

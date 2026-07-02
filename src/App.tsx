@@ -345,16 +345,16 @@ function App() {
             title="Settings"
             onClick={() => setView(view === "settings" ? "main" : "settings")}
           >
-            <Settings size={14} />
+            <Settings size={17} />
           </button>
           <button className="tb-btn" title="Minimize" onClick={() => appWindow.minimize()}>
-            <Minus size={14} />
+            <Minus size={17} />
           </button>
           <button className="tb-btn" title="Maximize" onClick={() => appWindow.toggleMaximize()}>
-            <Square size={11} />
+            <Square size={13} />
           </button>
           <button className="tb-btn tb-close" title="Close" onClick={() => appWindow.close()}>
-            <X size={15} />
+            <X size={17} />
           </button>
         </div>
       </header>
