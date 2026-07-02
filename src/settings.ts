@@ -8,6 +8,9 @@ type Settings = {
   sidebarCollapsed: boolean;
   detailHeaderHeight: number;
   fileServerDefault: "ask" | "builtin" | "python";
+  terminalShell: string;
+  terminalFontSize: number;
+  terminalFontFamily: string;
 };
 
 const DEFAULTS: Settings = {
@@ -18,6 +21,9 @@ const DEFAULTS: Settings = {
   sidebarCollapsed: false,
   detailHeaderHeight: 0,
   fileServerDefault: "ask",
+  terminalShell: "powershell.exe",
+  terminalFontSize: 13,
+  terminalFontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */

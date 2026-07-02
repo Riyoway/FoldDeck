@@ -13,6 +13,8 @@ struct Session {
     child: Box<dyn Child + Send + Sync>,
     /// Recent raw output, replayed when a fresh terminal view re-attaches.
     buffer: Arc<Mutex<VecDeque<u8>>>,
+    /// The shell program this session was started with.
+    shell: String,
 }
 
 #[derive(Default)]
@@ -20,12 +22,8 @@ pub struct TerminalManager {
     sessions: Mutex<HashMap<String, Session>>,
 }
 
-fn shell() -> &'static str {
-    if cfg!(windows) {
-        "powershell.exe"
-    } else {
-        "/bin/bash"
-    }
+fn default_shell() -> String {
+    if cfg!(windows) { "powershell.exe" } else { "/bin/bash" }.to_string()
 }
 
 fn emit_output(app: &AppHandle, id: &str, bytes: &[u8]) {
@@ -39,27 +37,37 @@ impl TerminalManager {
         app: &AppHandle,
         id: &str,
         cwd: &str,
+        shell: &str,
         cols: u16,
         rows: u16,
     ) -> Result<(), String> {
+        let shell = if shell.trim().is_empty() {
+            default_shell()
+        } else {
+            shell.trim().to_string()
+        };
         let mut sessions = self.sessions.lock().unwrap();
-        // Already open → replay scrollback so the re-mounted view shows history.
+        // Already open with the same shell → replay scrollback for the re-mounted view.
         if let Some(s) = sessions.get(id) {
-            let buf = s.buffer.lock().unwrap();
-            let snapshot: Vec<u8> = buf.iter().copied().collect();
-            drop(buf);
-            let _ = s.master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
-            if !snapshot.is_empty() {
-                emit_output(app, id, &snapshot);
+            if s.shell == shell {
+                let snapshot: Vec<u8> = s.buffer.lock().unwrap().iter().copied().collect();
+                let _ = s.master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+                if !snapshot.is_empty() {
+                    emit_output(app, id, &snapshot);
+                }
+                return Ok(());
             }
-            return Ok(());
+            // Shell changed → tear down the old session and start fresh.
+            if let Some(mut old) = sessions.remove(id) {
+                let _ = old.child.kill();
+            }
         }
 
         let pty = native_pty_system();
         let pair = pty
             .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| e.to_string())?;
-        let mut cmd = CommandBuilder::new(shell());
+        let mut cmd = CommandBuilder::new(&shell);
         cmd.cwd(cwd);
         cmd.env("TERM", "xterm-256color");
         let child = pair
@@ -93,7 +101,10 @@ impl TerminalManager {
             let _ = read_app.emit("terminal-exit", serde_json::json!({ "id": read_id }));
         });
 
-        sessions.insert(id.to_string(), Session { master: pair.master, writer, child, buffer });
+        sessions.insert(
+            id.to_string(),
+            Session { master: pair.master, writer, child, buffer, shell },
+        );
         Ok(())
     }
 

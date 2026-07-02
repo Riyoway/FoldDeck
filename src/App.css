@@ -1020,6 +1020,11 @@ body.resizing-v {
   flex-shrink: 0;
 }
 
+.settings-input {
+  width: 280px;
+  flex-shrink: 0;
+}
+
 /* toggle switch */
 
 .switch {

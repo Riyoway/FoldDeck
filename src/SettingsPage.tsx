@@ -2,21 +2,39 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Button, Switch, Tab, Tabs } from "@heroui/react";
+import { Button, Input, Switch, Tab, Tabs } from "@heroui/react";
 import { FolderOpen, RotateCcw } from "lucide-react";
 import { applyUiZoom, getSetting, setSetting } from "./settings";
 
-type Section = "appearance" | "safety" | "logs" | "servers" | "recipes" | "storage" | "about";
+type Section =
+  | "appearance"
+  | "safety"
+  | "logs"
+  | "terminal"
+  | "servers"
+  | "recipes"
+  | "storage"
+  | "about";
 
 const SECTIONS: [Section, string][] = [
   ["appearance", "Appearance"],
   ["safety", "Safety"],
   ["logs", "Logs"],
+  ["terminal", "Terminal"],
   ["servers", "Servers"],
   ["recipes", "Recipes"],
   ["storage", "Storage"],
   ["about", "About"],
 ];
+
+const SHELL_PRESETS: [string, string][] = [
+  ["PowerShell", "powershell.exe"],
+  ["PowerShell 7", "pwsh.exe"],
+  ["Command Prompt", "cmd.exe"],
+  ["Git Bash", "bash.exe"],
+];
+
+const TERM_FONT_SIZES = [12, 13, 14, 16];
 
 const FILE_SERVER_OPTIONS: ["ask" | "builtin" | "python", string][] = [
   ["ask", "Ask every time"],
@@ -71,6 +89,9 @@ export default function SettingsPage() {
   const [recipeMsg, setRecipeMsg] = useState<string | null>(null);
   const [zoom, setZoom] = useState(getSetting("uiZoom"));
   const [fileServer, setFileServer] = useState(getSetting("fileServerDefault"));
+  const [termShell, setTermShell] = useState(getSetting("terminalShell"));
+  const [termSize, setTermSize] = useState(getSetting("terminalFontSize"));
+  const [termFont, setTermFont] = useState(getSetting("terminalFontFamily"));
 
   useEffect(() => {
     invoke<{ appData: string; recipes: string }>("get_app_paths").then(setPaths);
@@ -144,6 +165,87 @@ export default function SettingsPage() {
               label="Auto-scroll logs"
               description="Keep the log view pinned to the newest line while a project is running."
             />
+          </>
+        )}
+
+        {section === "terminal" && (
+          <>
+            <h2>Terminal</h2>
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <div className="settings-label">Shell</div>
+                <div className="settings-desc">
+                  Program launched in the Terminal tab (in the project folder). Applies the next
+                  time a terminal opens.
+                </div>
+                <div className="settings-btns" style={{ marginTop: 10, flexWrap: "wrap" }}>
+                  {SHELL_PRESETS.map(([label, cmd]) => (
+                    <Button
+                      key={cmd}
+                      size="sm"
+                      variant={termShell === cmd ? "solid" : "flat"}
+                      onPress={() => {
+                        setSetting("terminalShell", cmd);
+                        setTermShell(cmd);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                size="md"
+                variant="bordered"
+                className="settings-input"
+                value={termShell}
+                onValueChange={(v) => {
+                  setTermShell(v);
+                  setSetting("terminalShell", v);
+                }}
+                placeholder="powershell.exe"
+              />
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <div className="settings-label">Font size</div>
+                <div className="settings-desc">Text size inside the terminal.</div>
+              </div>
+              <Tabs
+                size="md"
+                aria-label="Terminal font size"
+                selectedKey={String(termSize)}
+                onSelectionChange={(k) => {
+                  const n = Number(k);
+                  setSetting("terminalFontSize", n);
+                  setTermSize(n);
+                }}
+              >
+                {TERM_FONT_SIZES.map((n) => (
+                  <Tab key={String(n)} title={`${n}px`} />
+                ))}
+              </Tabs>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <div className="settings-label">Font family</div>
+                <div className="settings-desc">
+                  A monospace font stack, e.g. <code>"JetBrains Mono", Consolas, monospace</code>.
+                </div>
+              </div>
+              <Input
+                size="md"
+                variant="bordered"
+                className="settings-input"
+                value={termFont}
+                onValueChange={(v) => {
+                  setTermFont(v);
+                  setSetting("terminalFontFamily", v);
+                }}
+              />
+            </div>
           </>
         )}
 

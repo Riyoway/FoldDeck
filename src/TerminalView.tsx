@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
+import { getSetting } from "./settings";
 
 const THEME = {
   background: "#050506",
@@ -44,8 +45,8 @@ export default function TerminalView({ projectId, cwd }: { projectId: string; cw
     if (!el) return;
 
     const term = new Terminal({
-      fontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
-      fontSize: 13,
+      fontFamily: getSetting("terminalFontFamily"),
+      fontSize: getSetting("terminalFontSize"),
       theme: THEME,
       cursorBlink: true,
       scrollback: 5000,
@@ -67,7 +68,13 @@ export default function TerminalView({ projectId, cwd }: { projectId: string; cw
       if (e.payload.id === projectId) term.write("\r\n\x1b[90m[shell exited]\x1b[0m\r\n");
     });
 
-    invoke("terminal_open", { id: projectId, cwd, cols: term.cols, rows: term.rows });
+    void cwd;
+    invoke("terminal_open", {
+      id: projectId,
+      shell: getSetting("terminalShell"),
+      cols: term.cols,
+      rows: term.rows,
+    }).catch((err) => term.write(`\r\n\x1b[31m${String(err)}\x1b[0m\r\n`));
 
     const doFit = () => {
       fit.fit();

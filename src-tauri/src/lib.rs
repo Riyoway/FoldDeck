@@ -482,16 +482,15 @@ fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<
 #[tauri::command]
 fn terminal_open(
     id: String,
-    cwd: String,
+    shell: String,
     cols: u16,
     rows: u16,
     app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    // cwd comes from the stored project, not arbitrary input.
+    // cwd is the stored project dir, not arbitrary input.
     let dir = find_stored(&state, &id)?.path;
-    let _ = cwd;
-    state.terminals.open(&app, &id, &dir, cols, rows)
+    state.terminals.open(&app, &id, &dir, &shell, cols, rows)
 }
 
 #[tauri::command]
