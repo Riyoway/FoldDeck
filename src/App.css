@@ -326,8 +326,14 @@ body.resizing {
 }
 
 .row-dragging {
-  opacity: 0.55;
-  background: var(--accent-soft) !important;
+  background: #1c2a3f !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+  opacity: 0.92;
+}
+
+body.dragging-row,
+body.dragging-row * {
+  cursor: grabbing !important;
 }
 
 .grip {
@@ -417,22 +423,22 @@ body.resizing {
 }
 
 .detail-resize {
-  position: relative;
-  height: 8px;
-  margin: -3px 0;
+  height: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: row-resize;
   flex-shrink: 0;
-  z-index: 4;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
 }
 
 .detail-resize::after {
   content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 3px;
-  height: 2px;
-  background: transparent;
+  width: 34px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-2);
   transition: background 0.12s;
 }
 

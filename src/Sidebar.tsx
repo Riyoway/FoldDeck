@@ -39,35 +39,47 @@ export default function Sidebar({
       ? (order.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as ProjectInfo[])
       : projects;
 
+  // Pointer tracking lives on `window`, not on the grip element, so the live
+  // reorder re-rendering the row can't drop the drag (which caused the item to
+  // stop following, snap back, and stay highlighted after release).
   const startDrag = (id: string, e: ReactPointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    let current = projects.map((p) => p.id);
     setDragId(id);
-    setOrder(projects.map((p) => p.id));
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
+    setOrder(current);
 
-  const moveDrag = (e: ReactPointerEvent) => {
-    if (!dragId || !order || !listRef.current) return;
-    const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>("[data-proj-id]"));
-    let targetId: string | null = null;
-    for (const row of rows) {
-      const r = row.getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) {
-        targetId = row.dataset.projId ?? null;
-        break;
+    const move = (ev: PointerEvent) => {
+      if (!listRef.current) return;
+      const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>("[data-proj-id]"));
+      let overId: string | null = null;
+      for (const row of rows) {
+        const r = row.getBoundingClientRect();
+        if (ev.clientY < r.top + r.height / 2) {
+          overId = row.dataset.projId ?? null;
+          break;
+        }
       }
-    }
-    const without = order.filter((id) => id !== dragId);
-    const idx = targetId ? without.indexOf(targetId) : without.length;
-    const next = [...without.slice(0, idx), dragId, ...without.slice(idx)];
-    if (next.join("|") !== order.join("|")) setOrder(next);
-  };
-
-  const endDrag = () => {
-    if (order) onReorder(order);
-    setDragId(null);
-    setOrder(null);
+      if (overId === id) return;
+      const without = current.filter((x) => x !== id);
+      const idx = overId ? without.indexOf(overId) : without.length;
+      const next = [...without.slice(0, idx), id, ...without.slice(idx)];
+      if (next.join("|") !== current.join("|")) {
+        current = next;
+        setOrder(next);
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("dragging-row");
+      onReorder(current);
+      setDragId(null);
+      setOrder(null);
+    };
+    document.body.classList.add("dragging-row");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   };
 
   const startResize = (e: ReactPointerEvent) => {
@@ -128,8 +140,6 @@ export default function Sidebar({
                   className="grip"
                   title="Drag to reorder"
                   onPointerDown={(e) => startDrag(p.id, e)}
-                  onPointerMove={moveDrag}
-                  onPointerUp={endDrag}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <GripVertical size={13} />
