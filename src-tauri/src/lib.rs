@@ -476,6 +476,39 @@ fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<
     env_file::create_from_example(&find_stored(&state, &id)?.path)
 }
 
+#[tauri::command]
+fn read_markdown(
+    id: String,
+    path: String,
+    state: tauri::State<AppState>,
+) -> Result<String, String> {
+    let dir = find_stored(&state, &id)?.path;
+    let root = Path::new(&dir)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let full = root
+        .join(&path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    // Stay inside the project and only read markdown.
+    if !full.starts_with(&root) {
+        return Err("Path is outside the project.".into());
+    }
+    let ext = full
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if ext != "md" && ext != "markdown" {
+        return Err("Not a markdown file.".into());
+    }
+    let meta = full.metadata().map_err(|e| e.to_string())?;
+    if meta.len() > 4 * 1024 * 1024 {
+        return Err("File is too large to display.".into());
+    }
+    std::fs::read_to_string(&full).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -525,7 +558,8 @@ pub fn run() {
             reload_recipes,
             read_env_file,
             save_env_file,
-            create_env_from_example
+            create_env_from_example,
+            read_markdown
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

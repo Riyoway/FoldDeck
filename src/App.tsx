@@ -38,6 +38,7 @@ import BotPanel from "./BotPanel";
 import ContextMenu, { type MenuItem, type MenuState } from "./ContextMenu";
 import Dashboard from "./Dashboard";
 import LogView from "./LogView";
+import MarkdownView from "./MarkdownView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
@@ -68,6 +69,7 @@ export interface ProjectInfo {
   depsInstalled?: boolean | null;
   iconDataUri?: string | null;
   fileServer?: string | null;
+  docs?: string[];
   warnings: string[];
 }
 
@@ -81,7 +83,7 @@ export interface ProjectStatus {
   lastStoppedAt?: number | null;
 }
 
-type Tab = "logs" | "bot" | "doctor" | "env" | "packages" | "info";
+type Tab = "logs" | "readme" | "bot" | "doctor" | "env" | "packages" | "info";
 
 const MAX_LOG_LINES = 2000;
 
@@ -372,6 +374,7 @@ function App() {
   const tabs: [Tab, string, boolean][] = selected
     ? [
         ["logs", "Logs", true],
+        ["readme", "Readme", (selected.docs?.length ?? 0) > 0],
         ["bot", "Bot", selected.kind === "bot"],
         ["doctor", "Doctor", true],
         ["env", "Env", selected.envFiles.length > 0],
@@ -689,6 +692,7 @@ function App() {
                     <LogView lines={logs[selected.id] ?? []} />
                   </div>
                 )}
+                {activeTab === "readme" && <MarkdownView key={selected.id} project={selected} />}
                 {activeTab === "bot" && (
                   <BotPanel key={selected.id} project={selected} status={st} logs={logs[selected.id] ?? []} />
                 )}

@@ -26,6 +26,8 @@ pub struct ProjectInfo {
     pub icon_data_uri: Option<String>,
     /// File-server mode chosen for unrecognized folders ("builtin" | "python").
     pub file_server: Option<String>,
+    /// Relative paths of markdown docs (README first).
+    pub docs: Vec<String>,
     pub warnings: Vec<String>,
 }
 
@@ -60,7 +62,38 @@ pub fn detect(path: &str) -> ProjectInfo {
     if matches!(info.kind.as_str(), "web-app" | "static-site") {
         info.icon_data_uri = find_favicon(Path::new(path));
     }
+    info.docs = find_docs(Path::new(path));
     info
+}
+
+fn is_markdown(name: &str) -> bool {
+    let l = name.to_lowercase();
+    l.ends_with(".md") || l.ends_with(".markdown")
+}
+
+/// Top-level and docs/ markdown files, README first.
+fn find_docs(dir: &Path) -> Vec<String> {
+    let mut docs: Vec<String> = Vec::new();
+    let mut collect = |base: Option<&str>| {
+        let target = base.map(|b| dir.join(b)).unwrap_or_else(|| dir.to_path_buf());
+        for e in std::fs::read_dir(&target).into_iter().flatten().flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if e.path().is_file() && is_markdown(&name) {
+                docs.push(base.map(|b| format!("{}/{}", b, name)).unwrap_or(name));
+            }
+        }
+    };
+    collect(None);
+    if dir.join("docs").is_dir() {
+        collect(Some("docs"));
+    }
+    docs.sort_by(|a, b| {
+        let ar = a.to_lowercase().contains("readme");
+        let br = b.to_lowercase().contains("readme");
+        br.cmp(&ar).then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
+    });
+    docs.truncate(40);
+    docs
 }
 
 const FAVICON_PATHS: &[&str] = &[
@@ -124,6 +157,7 @@ fn classify(path: &str) -> ProjectInfo {
         deps_installed: None,
         icon_data_uri: None,
         file_server: None,
+        docs: Vec::new(),
         warnings: Vec::new(),
     };
 
