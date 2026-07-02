@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Gamepad2,
   Globe,
+  KeyRound,
   Package,
   Play,
   Plus,
@@ -23,6 +24,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import EnvEditor from "./EnvEditor";
 import "./App.css";
 
 interface ProjectInfo {
@@ -77,6 +79,7 @@ function App() {
   const [statuses, setStatuses] = useState<Record<string, ProjectStatus>>({});
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [selected, setSelected] = useState<string | null>(null);
+  const [envProject, setEnvProject] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -264,6 +267,11 @@ function App() {
           <button className="btn" onClick={() => openLogs(p.id)}>
             <ScrollText size={14} /> Logs
           </button>
+          {p.envFiles.length > 0 && (
+            <button className="btn" onClick={() => setEnvProject(p)}>
+              <KeyRound size={14} /> Env
+            </button>
+          )}
           <button className="btn" onClick={() => invoke("open_folder", { path: p.path })}>
             <FolderOpen size={14} /> Folder
           </button>
@@ -334,6 +342,16 @@ function App() {
             <div ref={logEndRef} />
           </div>
         </div>
+      )}
+
+      {envProject && (
+        <EnvEditor
+          projectId={envProject.id}
+          projectName={envProject.name}
+          envFiles={envProject.envFiles}
+          onClose={() => setEnvProject(null)}
+          onChanged={refreshProjects}
+        />
       )}
 
       {dragging && <div className="drop-overlay">Drop folder to add</div>}

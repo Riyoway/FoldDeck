@@ -11,11 +11,6 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const LOG_BUFFER_LINES: usize = 2000;
 
-const SECRET_KEY_MARKERS: &[&str] = &[
-    "TOKEN", "SECRET", "PASSWORD", "PASS", "API_KEY", "PRIVATE_KEY", "ACCESS_KEY", "AUTH",
-    "SESSION", "COOKIE", "WEBHOOK", "DATABASE_URL",
-];
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectStatus {
@@ -82,9 +77,9 @@ fn collect_secrets(project: &ProjectInfo) -> Vec<String> {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
             };
-            let key = key.trim().to_uppercase();
+            let key = key.trim();
             let value = value.trim().trim_matches('"').trim_matches('\'');
-            if value.len() >= 6 && SECRET_KEY_MARKERS.iter().any(|m| key.contains(m)) {
+            if value.len() >= 6 && crate::env_file::is_secret_key(key) {
                 secrets.push(value.to_string());
             }
         }

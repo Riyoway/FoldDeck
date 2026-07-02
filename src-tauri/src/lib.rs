@@ -1,7 +1,9 @@
 mod detect;
+mod env_file;
 mod process;
 
 use detect::{detect, project_id, ProjectInfo};
+use env_file::EnvEntry;
 use process::{ProcessManager, ProjectStatus};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -53,22 +55,51 @@ fn remove_project(id: String, state: tauri::State<AppState>) {
     save_paths(&state.store_path, &paths);
 }
 
-#[tauri::command]
-fn start_project(
-    id: String,
-    app: tauri::AppHandle,
-    state: tauri::State<AppState>,
-) -> Result<(), String> {
-    let path = state
+fn find_path(state: &tauri::State<AppState>, id: &str) -> Result<String, String> {
+    state
         .paths
         .lock()
         .unwrap()
         .iter()
         .find(|p| project_id(p) == id)
         .cloned()
-        .ok_or("Unknown project.")?;
-    let info = detect(&path);
+        .ok_or_else(|| "Unknown project.".into())
+}
+
+#[tauri::command]
+fn start_project(
+    id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let info = detect(&find_path(&state, &id)?);
     state.manager.start(&app, &info)
+}
+
+#[tauri::command]
+fn read_env_file(
+    id: String,
+    file_name: String,
+    state: tauri::State<AppState>,
+) -> Result<Vec<EnvEntry>, String> {
+    let dir = find_path(&state, &id)?;
+    env_file::read_entries(&env_file::env_path(&dir, &file_name)?)
+}
+
+#[tauri::command]
+fn save_env_file(
+    id: String,
+    file_name: String,
+    entries: Vec<EnvEntry>,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let dir = find_path(&state, &id)?;
+    env_file::save_entries(&env_file::env_path(&dir, &file_name)?, &entries)
+}
+
+#[tauri::command]
+fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<(), String> {
+    env_file::create_from_example(&find_path(&state, &id)?)
 }
 
 #[tauri::command]
@@ -122,7 +153,10 @@ pub fn run() {
             stop_project,
             get_logs,
             get_statuses,
-            open_folder
+            open_folder,
+            read_env_file,
+            save_env_file,
+            create_env_from_example
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

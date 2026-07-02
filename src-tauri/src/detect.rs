@@ -30,15 +30,7 @@ pub fn project_id(path: &str) -> String {
     format!("{:016x}", h.finish())
 }
 
-const ENV_FILES: &[&str] = &[
-    ".env",
-    ".env.local",
-    ".env.development",
-    ".env.production",
-    ".env.example",
-    ".env.template",
-    ".env.sample",
-];
+use crate::env_file::ENV_FILES;
 
 const NODE_DISCORD_DEPS: &[&str] = &[
     "discord.js",
