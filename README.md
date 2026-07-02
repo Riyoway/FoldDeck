@@ -13,9 +13,6 @@ FoldDeck is a local-first desktop dashboard that detects, runs, monitors, and au
 - Env files → Edit safely
 - Packages → Install, inspect, audit
 
-## Status
-
-🚧 In development (pre-v1). See [docs/requirements-v1-additions.md](docs/requirements-v1-additions.md).
 
 ## Tech Stack
 
