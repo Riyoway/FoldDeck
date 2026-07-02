@@ -1,6 +1,8 @@
+mod audit;
 mod detect;
 mod env_file;
 mod process;
+mod static_server;
 
 use detect::{detect, project_id, ProjectInfo};
 use env_file::EnvEntry;
@@ -131,11 +133,26 @@ fn start_project(
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     let info = project_info(&find_stored(&state, &id)?);
+    if info.kind == "static-site" && info.start_command.is_none() {
+        return state.manager.start_static(&app, &info);
+    }
     let cmd = info
         .start_command
         .clone()
         .ok_or("No start command detected for this project.")?;
     state.manager.start(&app, &info, &cmd)
+}
+
+#[tauri::command]
+fn run_command_audit(command: String) -> Vec<String> {
+    audit::audit_command(&command)
+}
+
+#[tauri::command]
+fn run_doctor(id: String, state: tauri::State<AppState>) -> Result<audit::DoctorReport, String> {
+    let info = project_info(&find_stored(&state, &id)?);
+    let running = state.manager.status(&id).running;
+    Ok(audit::doctor(&info, running))
 }
 
 #[tauri::command]
@@ -283,6 +300,8 @@ pub fn run() {
             start_project,
             stop_project,
             restart_project,
+            run_command_audit,
+            run_doctor,
             run_project_command,
             install_dependencies,
             reinstall_dependencies,

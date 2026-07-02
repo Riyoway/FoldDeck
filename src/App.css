@@ -577,6 +577,38 @@ body {
   flex-shrink: 0;
 }
 
+/* ---- doctor ---- */
+
+.doctor {
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.doctor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doctor-section {
+  margin-top: 10px;
+}
+
+.doctor-section .group-label {
+  padding-left: 0;
+}
+
+.doctor-line {
+  padding: 2px 0;
+  user-select: text;
+}
+
+.err-text {
+  color: var(--red);
+}
+
 /* ---- drop overlay ---- */
 
 .drop-overlay {

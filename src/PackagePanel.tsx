@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Download, Pin, Play, RefreshCcw } from "lucide-react";
+import { Download, Pin, Play, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { ProjectInfo } from "./App";
+import { confirmCommandAudit } from "./audit";
 
 interface Props {
   project: ProjectInfo;
@@ -34,6 +35,17 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
     call("reinstall_dependencies", { id: project.id });
   };
 
+  const runScript = async (script: string) => {
+    const command = runCommand(pm, script);
+    // The script body is what actually runs — audit it, not just the runner.
+    const body = project.scripts[script] ?? "";
+    if (!(await confirmCommandAudit(`${command}\n(${body})`))) return;
+    call("run_project_command", { id: project.id, command });
+  };
+
+  const auditCommand =
+    pm === "yarn" ? "yarn audit" : pm === "pip" ? "pip-audit" : pm === "uv" ? "uv pip audit" : `${pm} audit`;
+
   const setStart = async (script: string) => {
     await call("set_start_command", { id: project.id, command: runCommand(pm, script) }, false);
     onChanged();
@@ -65,6 +77,13 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
             <RefreshCcw size={12} /> Reinstall
           </button>
         )}
+        <button
+          className="btn"
+          title={`Run ${auditCommand} (output goes to Logs)`}
+          onClick={() => call("run_project_command", { id: project.id, command: auditCommand })}
+        >
+          <ShieldAlert size={12} /> Audit
+        </button>
       </div>
 
       {scripts.length > 0 && (
@@ -78,7 +97,7 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
                   <button
                     className="btn btn-ghost"
                     title={`Run ${runCommand(pm, name)}`}
-                    onClick={() => call("run_project_command", { id: project.id, command: runCommand(pm, name) })}
+                    onClick={() => runScript(name)}
                   >
                     <Play size={12} />
                   </button>

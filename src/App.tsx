@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
+import DoctorPanel from "./DoctorPanel";
+import { confirmCommandAudit } from "./audit";
 import "./App.css";
 
 export interface ProjectInfo {
@@ -45,7 +47,7 @@ export interface ProjectStatus {
   lastExitCode?: number | null;
 }
 
-type Tab = "logs" | "env" | "packages" | "info";
+type Tab = "logs" | "doctor" | "env" | "packages" | "info";
 
 const MAX_LOG_LINES = 2000;
 
@@ -154,7 +156,8 @@ function App() {
     }
   };
 
-  const start = async (id: string) => {
+  const start = async (id: string, command?: string | null) => {
+    if (command && !(await confirmCommandAudit(command))) return;
     setLogs((prev) => ({ ...prev, [id]: [] }));
     await call("start_project", { id });
     setTab("logs");
@@ -214,6 +217,7 @@ function App() {
   const tabs: [Tab, string, boolean][] = selected
     ? [
         ["logs", "Logs", true],
+        ["doctor", "Doctor", true],
         ["env", "Env", selected.envFiles.length > 0],
         ["packages", "Packages", !!selected.packageManager],
         ["info", "Info", true],
@@ -337,9 +341,14 @@ function App() {
                   ) : (
                     <button
                       className="btn btn-ok"
-                      onClick={() => start(selected.id)}
-                      disabled={!selected.startCommand}
-                      title={selected.startCommand ?? "No start command detected"}
+                      onClick={() => start(selected.id, selected.startCommand)}
+                      disabled={!selected.startCommand && selected.kind !== "static-site"}
+                      title={
+                        selected.startCommand ??
+                        (selected.kind === "static-site"
+                          ? "Serve with built-in static server"
+                          : "No start command detected")
+                      }
                     >
                       <Play size={12} /> Start
                     </button>
@@ -384,6 +393,7 @@ function App() {
                     <div ref={logEndRef} />
                   </div>
                 )}
+                {activeTab === "doctor" && <DoctorPanel key={selected.id} projectId={selected.id} />}
                 {activeTab === "env" && (
                   <EnvEditor
                     key={selected.id}

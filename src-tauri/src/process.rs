@@ -22,11 +22,19 @@ pub struct ProjectStatus {
     pub last_exit_code: Option<i32>,
 }
 
+enum ProcHandle {
+    Child { pid: u32 },
+    /// In-process server (static sites); stopping pokes the port to unblock accept.
+    Internal { stop: Arc<AtomicBool>, port: u16 },
+}
+
 struct RunningProc {
-    pid: u32,
+    handle: ProcHandle,
     started_at: u64,
     user_stopped: Arc<AtomicBool>,
     url: Arc<Mutex<Option<String>>>,
+    /// Extra command to run in the project dir after stopping (docker compose stop).
+    on_stop_command: Option<(String, String)>,
 }
 
 struct ProjectRuntime {
@@ -189,11 +197,16 @@ impl ProcessManager {
 
         let child = Arc::new(Mutex::new(child));
         let user_stopped = Arc::new(AtomicBool::new(false));
+        // Killing `docker compose up` leaves containers running; stop them too.
+        let on_stop_command = command
+            .contains("docker compose up")
+            .then(|| ("docker compose stop".to_string(), project.path.clone()));
         runtime.proc = Some(RunningProc {
-            pid,
+            handle: ProcHandle::Child { pid },
             started_at: now_secs(),
             user_stopped: user_stopped.clone(),
             url: url_slot,
+            on_stop_command,
         });
 
         // Waiter: detect exit, update state, emit status event.
@@ -234,23 +247,121 @@ impl ProcessManager {
         Ok(())
     }
 
+    /// Runs an in-process static file server as a "running project".
+    pub fn start_static(&self, app: &AppHandle, project: &ProjectInfo) -> Result<(), String> {
+        let mut projects = self.projects.lock().unwrap();
+        let runtime = projects.entry(project.id.clone()).or_default();
+        if runtime.proc.is_some() {
+            return Err("Project is already running.".into());
+        }
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        let url = format!("http://localhost:{}", port);
+        let stop = Arc::new(AtomicBool::new(false));
+
+        {
+            let mut logs = runtime.logs.lock().unwrap();
+            logs.clear();
+            logs.push_back(format!("Serving {} at {}", project.path, url));
+        }
+
+        let url_slot = Arc::new(Mutex::new(Some(url.clone())));
+        runtime.proc = Some(RunningProc {
+            handle: ProcHandle::Internal { stop: stop.clone(), port },
+            started_at: now_secs(),
+            user_stopped: Arc::new(AtomicBool::new(true)), // never counts as a crash
+            url: url_slot,
+            on_stop_command: None,
+        });
+
+        let root = std::path::PathBuf::from(&project.path);
+        let id = project.id.clone();
+        let logs = runtime.logs.clone();
+        let srv_app = app.clone();
+        std::thread::spawn(move || {
+            let app = srv_app;
+            {
+                let log_app = app.clone();
+                let log_id = id.clone();
+                crate::static_server::run(root, listener, stop, move |line| {
+                    {
+                        let mut logs = logs.lock().unwrap();
+                        if logs.len() >= LOG_BUFFER_LINES {
+                            logs.pop_front();
+                        }
+                        logs.push_back(line.clone());
+                    }
+                    let _ = log_app.emit("project-log", LogEvent { id: log_id.clone(), line });
+                });
+            }
+            if let Some(state) = app.try_state::<crate::AppState>() {
+                let mut projects = state.manager.projects.lock().unwrap();
+                if let Some(rt) = projects.get_mut(&id) {
+                    rt.proc = None;
+                    rt.last_exit_code = Some(0);
+                }
+            }
+            let _ = app.emit(
+                "project-exit",
+                serde_json::json!({ "id": id, "code": 0, "crashed": false }),
+            );
+        });
+
+        let _ = app.emit("project-url", LogEvent { id: project.id.clone(), line: url });
+        let _ = app.emit(
+            "project-started",
+            serde_json::json!({ "id": project.id, "pid": 0 }),
+        );
+        Ok(())
+    }
+
     pub fn stop(&self, id: &str) -> Result<(), String> {
-        let pid = {
+        let (handle_info, on_stop) = {
             let projects = self.projects.lock().unwrap();
             let rt = projects.get(id).ok_or("Project is not running.")?;
             let proc = rt.proc.as_ref().ok_or("Project is not running.")?;
             proc.user_stopped.store(true, Ordering::SeqCst);
-            proc.pid
+            let info = match &proc.handle {
+                ProcHandle::Child { pid } => Ok(*pid),
+                ProcHandle::Internal { stop, port } => {
+                    stop.store(true, Ordering::SeqCst);
+                    Err(*port)
+                }
+            };
+            (info, proc.on_stop_command.clone())
         };
-        // Kill the whole tree: package managers spawn node/python children.
-        let mut kill = Command::new("taskkill");
-        kill.args(["/PID", &pid.to_string(), "/T", "/F"]);
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            kill.creation_flags(0x08000000);
+        match handle_info {
+            Ok(pid) => {
+                // Kill the whole tree: package managers spawn node/python children.
+                let mut kill = Command::new("taskkill");
+                kill.args(["/PID", &pid.to_string(), "/T", "/F"]);
+                #[cfg(windows)]
+                {
+                    use std::os::windows::process::CommandExt;
+                    kill.creation_flags(0x08000000);
+                }
+                kill.output().map_err(|e| e.to_string())?;
+            }
+            Err(port) => {
+                // Poke the listener so the blocking accept sees the stop flag.
+                let _ = std::net::TcpStream::connect(("127.0.0.1", port));
+            }
         }
-        kill.output().map_err(|e| e.to_string())?;
+        if let Some((cmd, dir)) = on_stop {
+            let mut stop_cmd = Command::new("cmd");
+            stop_cmd
+                .args(["/C", &cmd])
+                .current_dir(dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                stop_cmd.creation_flags(0x08000000);
+            }
+            let _ = stop_cmd.spawn();
+        }
         Ok(())
     }
 
