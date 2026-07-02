@@ -9,11 +9,11 @@ import {
   Check,
   ExternalLink,
   FolderOpen,
-  LayoutDashboard,
   Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Play,
-  Plus,
   RotateCw,
   Settings,
   Square,
@@ -27,8 +27,9 @@ import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
 import DoctorPanel from "./DoctorPanel";
 import SettingsPage from "./SettingsPage";
+import Sidebar from "./Sidebar";
 import { confirmCommandAudit } from "./audit";
-import { applyUiZoom, getSetting } from "./settings";
+import { applyUiZoom, getSetting, setSetting } from "./settings";
 import "./App.css";
 
 const appWindow = getCurrentWindow();
@@ -82,6 +83,8 @@ function App() {
   const [view, setView] = useState<"main" | "settings">("main");
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getSetting("sidebarCollapsed"));
+  const [sidebarWidth, setSidebarWidth] = useState(getSetting("sidebarWidth"));
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -229,31 +232,21 @@ function App() {
     seedLogs(id);
   };
 
-  const running = projects.filter((p) => statuses[p.id]?.running);
-  const stopped = projects.filter((p) => !statuses[p.id]?.running);
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    setSetting("sidebarCollapsed", next);
+  };
 
-  const renderRow = (p: ProjectInfo) => {
-    const st = statuses[p.id];
-    const isRunning = !!st?.running;
-    return (
-      <div
-        key={p.id}
-        className={`row ${p.id === selectedId ? "row-selected" : ""}`}
-        onClick={() => selectProject(p.id)}
-      >
-        <span className={`st ${isRunning ? "st-on" : ""}`} />
-        <span className="row-name">{p.name}</span>
-        {p.warnings.length > 0 && <span className="row-warn">{p.warnings.length}</span>}
-        <span className="row-fw">{p.framework ?? p.kind}</span>
-        <span className="row-port">
-          {isRunning && st?.url
-            ? st.url.replace(/^https?:\/\//, "")
-            : p.defaultPort
-              ? `:${p.defaultPort}`
-              : ""}
-        </span>
-      </div>
-    );
+  const changeSidebarWidth = (w: number) => {
+    setSidebarWidth(w);
+    setSetting("sidebarWidth", w);
+  };
+
+  const reorderProjects = (ids: string[]) => {
+    // Optimistic reorder so there's no flash, then persist to the backend.
+    setProjects((prev) => ids.map((id) => prev.find((p) => p.id === id)).filter(Boolean) as ProjectInfo[]);
+    invoke("reorder_projects", { ids }).catch((e) => setError(String(e)));
   };
 
   const st = selected ? statuses[selected.id] : undefined;
@@ -279,6 +272,11 @@ function App() {
   return (
     <div className="app">
       <header className="titlebar" data-tauri-drag-region>
+        {view === "main" && (
+          <button className="tb-btn tb-toggle" title="Toggle sidebar" onClick={toggleSidebar}>
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
         <span className="brand" data-tauri-drag-region>
           FoldDeck
         </span>
@@ -316,43 +314,19 @@ function App() {
       )}
 
       <div className="body">
-        <aside className="sidebar">
-          <div className="sidebar-actions">
-            <button className="btn btn-primary" onClick={addFolder}>
-              <Plus size={13} /> Add folder
-            </button>
-          </div>
-          <div
-            className={`row row-nav ${selectedId === null ? "row-selected" : ""}`}
-            onClick={() => setSelectedId(null)}
-          >
-            <LayoutDashboard size={13} />
-            <span className="row-name">Dashboard</span>
-          </div>
-          {projects.length === 0 && (
-            <div className="sidebar-empty">
-              No projects yet.
-              <br />
-              Drop a folder anywhere, or use Add folder.
-            </div>
-          )}
-          {running.length > 0 && (
-            <>
-              <div className="group-label">
-                Running <span className="counter">{running.length}</span>
-              </div>
-              {running.map(renderRow)}
-            </>
-          )}
-          {stopped.length > 0 && (
-            <>
-              <div className="group-label">
-                Stopped <span className="counter">{stopped.length}</span>
-              </div>
-              {stopped.map(renderRow)}
-            </>
-          )}
-        </aside>
+        {!sidebarCollapsed && (
+          <Sidebar
+            projects={projects}
+            statuses={statuses}
+            selectedId={selectedId}
+            width={sidebarWidth}
+            onSelectDashboard={() => setSelectedId(null)}
+            onSelectProject={selectProject}
+            onAddFolder={addFolder}
+            onReorder={reorderProjects}
+            onResize={changeSidebarWidth}
+          />
+        )}
 
         <main className="detail">
           {!selected ? (

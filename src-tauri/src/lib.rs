@@ -125,6 +125,19 @@ fn remove_project(id: String, state: tauri::State<AppState>) {
     save_store(&state.store_path, &projects);
 }
 
+#[tauri::command]
+fn reorder_projects(ids: Vec<String>, state: tauri::State<AppState>) {
+    let mut projects = state.projects.lock().unwrap();
+    // Sort stored projects to match the given id order; anything not listed
+    // keeps its relative position at the end.
+    projects.sort_by_key(|p| {
+        ids.iter()
+            .position(|id| *id == project_id(&p.path))
+            .unwrap_or(usize::MAX)
+    });
+    save_store(&state.store_path, &projects);
+}
+
 fn update_stored(
     state: &tauri::State<AppState>,
     id: &str,
@@ -416,6 +429,7 @@ pub fn run() {
             list_projects,
             add_project,
             remove_project,
+            reorder_projects,
             set_start_command,
             set_project_name,
             set_project_port,

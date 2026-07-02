@@ -4,12 +4,16 @@ type Settings = {
   commandAuditConfirm: boolean;
   logAutoScroll: boolean;
   uiZoom: number;
+  sidebarWidth: number;
+  sidebarCollapsed: boolean;
 };
 
 const DEFAULTS: Settings = {
   commandAuditConfirm: true,
   logAutoScroll: true,
   uiZoom: 1,
+  sidebarWidth: 288,
+  sidebarCollapsed: false,
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */
