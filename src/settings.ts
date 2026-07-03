@@ -15,6 +15,8 @@ type Settings = {
   gitImportDir: string;
   /** UI font family; empty = built-in default. */
   uiFontFamily: string;
+  /** Projects grid density on the dashboard. */
+  dashDensity: "comfortable" | "compact";
 };
 
 const DEFAULTS: Settings = {
@@ -30,6 +32,7 @@ const DEFAULTS: Settings = {
   terminalFontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
   gitImportDir: "",
   uiFontFamily: "",
+  dashDensity: "comfortable",
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */

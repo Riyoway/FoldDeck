@@ -103,7 +103,7 @@ type Tab =
 
 const MAX_LOG_LINES = 2000;
 
-function formatUptime(startedAt?: number | null): string {
+export function formatUptime(startedAt?: number | null): string {
   if (!startedAt) return "";
   const s = Math.max(0, Math.floor(Date.now() / 1000) - startedAt);
   if (s < 60) return `${s}s`;

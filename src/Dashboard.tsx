@@ -9,15 +9,18 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  LayoutGrid,
   Pencil,
   Pin,
   Play,
+  Rows3,
   Search,
   Square,
   X,
 } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
-import type { ProjectInfo, ProjectStatus } from "./App";
+import { formatUptime, type ProjectInfo, type ProjectStatus } from "./App";
+import { getSetting, setSetting } from "./settings";
 
 interface PortInfo {
   port: number;
@@ -58,6 +61,7 @@ export default function Dashboard({
   );
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [sort, setSort] = useState<"manual" | "name" | "created" | "category" | "status">("manual");
+  const [density, setDensity] = useState(() => getSetting("dashDensity"));
 
   const refreshPorts = useCallback(() => {
     invoke<PortInfo[]>("get_ports_overview").then(setPorts);
@@ -187,15 +191,46 @@ export default function Dashboard({
                   <SelectItem key={s}>{label}</SelectItem>
                 ))}
               </Select>
+              <div className="dash-filters dash-density" role="group" aria-label="Density">
+                {([["comfortable", LayoutGrid, "Cards"], ["compact", Rows3, "List"]] as const).map(
+                  ([d, Icon, label]) => (
+                    <button
+                      key={d}
+                      className={`dash-filter ${density === d ? "dash-filter-on" : ""}`}
+                      title={`${label} view`}
+                      aria-label={`${label} view`}
+                      aria-pressed={density === d}
+                      onClick={() => {
+                        setDensity(d);
+                        setSetting("dashDensity", d);
+                      }}
+                    >
+                      <Icon size={14} />
+                    </button>
+                  ),
+                )}
+              </div>
             </div>
           )}
         </div>
         {!projectsOpen ? null : projects.length === 0 ? (
           <p className="dim dash-empty">Drop a folder anywhere to add your first project.</p>
         ) : shown.length === 0 ? (
-          <p className="dim dash-empty">No projects match.</p>
+          <div className="dash-empty dash-empty-filtered">
+            <span className="dim">No projects match.</span>
+            <Button
+              size="sm"
+              variant="light"
+              onPress={() => {
+                setQuery("");
+                setFilter("all");
+              }}
+            >
+              Reset filters
+            </Button>
+          </div>
         ) : (
-          <div className="proj-grid">
+          <div className={`proj-grid ${density === "compact" ? "proj-grid-compact" : ""}`}>
             {shown.map((p) => {
               const st = statuses[p.id];
               const isRunning = !!st?.running;
@@ -210,7 +245,16 @@ export default function Dashboard({
                 <div
                   key={p.id}
                   className={`proj-card ${isRunning ? "proj-card-on" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${p.name}`}
                   onClick={() => onSelect(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelect(p.id);
+                    }
+                  }}
                   onContextMenu={(e) => onProjectContextMenu(e, p)}
                 >
                   <div className="proj-card-head">
@@ -226,26 +270,39 @@ export default function Dashboard({
                   <div className="proj-card-meta">
                     {p.framework ?? p.kind}
                     {p.runtime ? ` · ${p.runtime}` : ""}
+                    <span className="proj-card-path" title={p.path}>
+                      {" · "}
+                      {p.path.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}
+                    </span>
                   </div>
                   <div className="proj-card-status">
                     <span className={`st ${isRunning ? "st-on" : ""}`} />
                     {isRunning ? (
-                      url ? (
-                        <a
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openUrl(url);
-                          }}
-                        >
-                          {url.replace(/^https?:\/\//, "")}
-                        </a>
-                      ) : (
-                        <span className="ok-text">running</span>
-                      )
+                      <>
+                        {url ? (
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openUrl(url);
+                            }}
+                          >
+                            {url.replace(/^https?:\/\//, "")}
+                          </a>
+                        ) : (
+                          <span className="ok-text">running</span>
+                        )}
+                        <span className="dim proj-card-uptime">{formatUptime(st?.startedAt)}</span>
+                      </>
+                    ) : st?.crashCount ? (
+                      <span className="warn-text">
+                        <AlertTriangle size={11} /> crashed {st.crashCount}×
+                      </span>
                     ) : st?.lastExitCode != null && st.lastExitCode !== 0 ? (
                       <span className="warn-text">exited ({st.lastExitCode})</span>
+                    ) : p.depsInstalled === false ? (
+                      <span className="warn-text">deps not installed</span>
                     ) : (
                       <span className="dim">
                         {p.defaultPort ? `stopped · ${p.defaultPort}` : "stopped"}
@@ -270,7 +327,7 @@ export default function Dashboard({
                   <div className="proj-card-actions" onClick={(e) => e.stopPropagation()}>
                     {isRunning ? (
                       <Button
-                        size="md"
+                        size="sm"
                         color="danger"
                         variant="flat"
                         startContent={<Square size={14} />}
@@ -280,7 +337,7 @@ export default function Dashboard({
                       </Button>
                     ) : (
                       <Button
-                        size="md"
+                        size="sm"
                         color="primary"
                         variant="flat"
                         isDisabled={!canStart}
@@ -292,7 +349,7 @@ export default function Dashboard({
                     )}
                     {url && (
                       <Button
-                        size="md"
+                        size="sm"
                         variant="flat"
                         startContent={<ExternalLink size={14} />}
                         onPress={() => openUrl(url)}
@@ -323,7 +380,17 @@ export default function Dashboard({
                 {ports.map((p) => {
                   const editing = editingPort === p.projectId;
                   return (
-                    <tr key={p.projectId} onClick={() => !editing && onSelect(p.projectId)}>
+                    <tr
+                      key={p.projectId}
+                      tabIndex={editing ? undefined : 0}
+                      onClick={() => !editing && onSelect(p.projectId)}
+                      onKeyDown={(e) => {
+                        if (!editing && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          onSelect(p.projectId);
+                        }
+                      }}
+                    >
                       <td className="col-port">
                         {editing ? (
                           <span onClick={(e) => e.stopPropagation()}>
