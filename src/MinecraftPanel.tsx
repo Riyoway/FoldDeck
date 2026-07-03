@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@heroui/react";
-import { Check, Copy, FolderOpen, ShieldCheck } from "lucide-react";
+import { Check, Copy, FolderOpen, Globe, ShieldAlert, ShieldCheck } from "lucide-react";
 import type { ProjectInfo } from "./App";
 
 interface McInfo {
@@ -18,6 +18,209 @@ interface McInfo {
 interface PropEntry {
   key: string;
   value: string;
+}
+
+interface ExposeResult {
+  publicAddress: string;
+  externalPort: number;
+  wanIp: string;
+  cgnat: boolean;
+  permanent: boolean;
+}
+
+interface ExposeStatus {
+  publicAddress: string;
+  externalPort: number;
+}
+
+function FallbackBlock({ port }: { port: number }) {
+  return (
+    <div className="mc-fallback">
+      <div className="mc-fallback-title">Use a tunnel instead — no router setup, and it hides your home IP.</div>
+      <p className="dim">
+        A tunnel like{" "}
+        <a href="#" onClick={(e) => { e.preventDefault(); openUrl("https://playit.gg"); }}>
+          playit.gg
+        </a>{" "}
+        gives players a public address that works even behind CGNAT: install it, point it at port{" "}
+        {port}, and share the address it prints — friends join with unmodified Minecraft.
+      </p>
+    </div>
+  );
+}
+
+function ExposeSection({
+  projectId,
+  port,
+  lanIp,
+  props,
+}: {
+  projectId: string;
+  port: number;
+  lanIp: string | null;
+  props: PropEntry[] | null;
+}) {
+  const [state, setState] = useState<"idle" | "opening" | "open" | "cgnat" | "unsupported" | "error">("idle");
+  const [result, setResult] = useState<ExposeResult | null>(null);
+  const [addr, setAddr] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    invoke<ExposeStatus | null>("mc_expose_status", { id: projectId })
+      .then((s) => {
+        if (s && s.publicAddress) {
+          setAddr(s.publicAddress);
+          setState("open");
+        }
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const open = async () => {
+    setState("opening");
+    setErr("");
+    try {
+      const r = await invoke<ExposeResult>("mc_expose_open", { id: projectId });
+      setResult(r);
+      if (r.cgnat) {
+        setState("cgnat");
+      } else {
+        setAddr(r.publicAddress);
+        setState("open");
+      }
+    } catch (e) {
+      const m = String(e);
+      setErr(m);
+      setState(m.includes("UPnP") ? "unsupported" : "error");
+    }
+  };
+
+  const close = async () => {
+    try {
+      await invoke("mc_expose_close", { id: projectId });
+    } catch {
+      /* best-effort */
+    }
+    setState("idle");
+    setResult(null);
+    setAddr("");
+  };
+
+  const firewall = () => invoke("mc_add_firewall_rule", { port }).catch(() => {});
+
+  const pv = (k: string) => props?.find((p) => p.key === k)?.value;
+  const warnings: string[] = [];
+  if (pv("online-mode") === "false")
+    warnings.push("online-mode=false — anyone can join as any username (even an op's). Turn it back on before exposing.");
+  if (pv("white-list") !== undefined && pv("white-list") !== "true")
+    warnings.push("white-list is off — the whole internet can join. Set white-list=true in server.properties.");
+  if (pv("enable-rcon") === "true")
+    warnings.push("enable-rcon=true — never forward RCON (25575). Only the game port is opened.");
+
+  return (
+    <div className="mc-expose">
+      <div className="mc-props-head">Expose to internet</div>
+
+      {warnings.length > 0 && (
+        <ul className="mc-warn-list">
+          {warnings.map((w, i) => (
+            <li key={i} className="warn-text">{w}</li>
+          ))}
+        </ul>
+      )}
+
+      {state === "idle" && (
+        <>
+          <p className="dim">
+            Opens port {port} on your router via UPnP so friends outside your network can join. Your
+            public IP becomes visible to players.
+          </p>
+          <div className="mc-actions">
+            <Button color="primary" startContent={<Globe size={15} />} onPress={open}>
+              Expose to internet
+            </Button>
+          </div>
+        </>
+      )}
+
+      {state === "opening" && (
+        <div className="mc-actions">
+          <Button color="primary" isLoading>Opening port {port}…</Button>
+        </div>
+      )}
+
+      {state === "open" && (
+        <>
+          <p className="ok-text">
+            <ShieldCheck size={15} style={{ verticalAlign: "-2px" }} /> Open — internet players can join.
+          </p>
+          <ConnectAddress label="internet players" addr={addr} />
+          <ConnectAddress label="LAN players" addr={`${lanIp ?? "your-lan-ip"}:${port}`} />
+          <p className="dim mc-note">
+            Testing this public address from your own network may fail (router hairpin) even when
+            outside players connect fine — ask a friend to test.
+          </p>
+          {result?.permanent && (
+            <p className="dim mc-note">
+              This router only supports permanent mappings; it's removed when you stop exposing or
+              quit FoldDeck.
+            </p>
+          )}
+          <div className="mc-actions">
+            <Button variant="flat" startContent={<ShieldAlert size={15} />} onPress={firewall}>
+              Allow in Windows Firewall
+            </Button>
+            <Button variant="flat" color="danger" onPress={close}>
+              Stop exposing
+            </Button>
+          </div>
+          <p className="dim mc-note">
+            Forwarding the router port isn't always enough — Windows must also allow it inbound
+            (approve Java's prompt, or click the button above).
+          </p>
+        </>
+      )}
+
+      {state === "cgnat" && (
+        <>
+          <p className="warn-text">
+            <ShieldAlert size={15} style={{ verticalAlign: "-2px" }} /> Your router is behind
+            carrier-grade NAT (WAN IP {result?.wanIp}), so port forwarding can't make this server
+            reachable.
+          </p>
+          <FallbackBlock port={port} />
+          <div className="mc-actions">
+            <Button variant="flat" onPress={() => setState("idle")}>Back</Button>
+          </div>
+        </>
+      )}
+
+      {state === "unsupported" && (
+        <>
+          <p className="warn-text">Automatic port setup unavailable — UPnP is off or unsupported on your router.</p>
+          <div className="info-table mc-manual">
+            <div className="info-row"><span className="info-key">protocol</span><span className="info-val">TCP</span></div>
+            <div className="info-row"><span className="info-key">port (ext + int)</span><span className="info-val">{port}</span></div>
+            <div className="info-row"><span className="info-key">internal IP</span><span className="info-val">{lanIp ?? "your-lan-ip"}</span></div>
+          </div>
+          <p className="dim mc-note">Forward this in your router's admin page, or:</p>
+          <FallbackBlock port={port} />
+          <div className="mc-actions">
+            <Button variant="flat" onPress={open}>Try UPnP again</Button>
+          </div>
+        </>
+      )}
+
+      {state === "error" && (
+        <>
+          <p className="warn-text">{err}</p>
+          <div className="mc-actions">
+            <Button variant="flat" onPress={open}>Try again</Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 const MEM_PRESETS = ["1G", "2G", "4G", "6G", "8G"];
@@ -186,6 +389,10 @@ export default function MinecraftPanel({
           </p>
         )}
       </div>
+
+      {info.jar && info.eulaAccepted && (
+        <ExposeSection projectId={project.id} port={info.port} lanIp={info.lanIp} props={props} />
+      )}
 
       {props && props.length > 0 && (
         <div className="mc-props-section">

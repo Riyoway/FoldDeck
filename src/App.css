@@ -1169,6 +1169,64 @@ body.resizing-v {
   font-size: 12px;
 }
 
+.mc-expose {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  max-width: 620px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mc-expose p {
+  margin: 8px 0;
+}
+
+.mc-note {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mc-warn-list {
+  margin: 4px 0 12px;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.mc-warn-list li {
+  margin: 3px 0;
+}
+
+.mc-fallback {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.mc-fallback-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.mc-fallback a,
+.mc-expose a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.mc-fallback a:hover,
+.mc-expose a:hover {
+  text-decoration: underline;
+}
+
+.mc-manual {
+  margin: 8px 0;
+  max-width: 320px;
+}
+
 /* ---- settings ---- */
 
 .settings {

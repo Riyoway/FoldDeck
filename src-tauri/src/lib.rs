@@ -36,6 +36,14 @@ pub struct AppState {
     store_path: PathBuf,
     recipes_dir: PathBuf,
     recipes: Mutex<Vec<recipes::Recipe>>,
+    /// Live UPnP port mappings keyed by project id (Minecraft "expose to internet").
+    exposures: Mutex<std::collections::HashMap<String, ActiveMapping>>,
+}
+
+#[derive(Clone)]
+struct ActiveMapping {
+    external_port: u16,
+    public_address: String,
 }
 
 fn load_store(store: &Path) -> Vec<StoredProject> {
@@ -768,6 +776,158 @@ fn set_minecraft_property(
     std::fs::write(&path, out.join("\n") + "\n").map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExposeResult {
+    /// "wan_ip:port" for players, or "" when CGNAT makes it unreachable.
+    public_address: String,
+    external_port: u16,
+    wan_ip: String,
+    /// Router's WAN IP is CGNAT/private → port-forwarding can't make it reachable.
+    cgnat: bool,
+    /// Router only accepted a permanent (never-expiring) mapping.
+    permanent: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExposeStatus {
+    public_address: String,
+    external_port: u16,
+}
+
+/// True when this WAN IP can never be reached from the public internet
+/// (RFC1918 private, CGNAT 100.64.0.0/10, loopback, link-local).
+fn is_unreachable_wan(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || (o[0] == 100 && (64..=127).contains(&o[1])) // CGNAT
+        }
+        std::net::IpAddr::V6(_) => false,
+    }
+}
+
+/// Opens the Minecraft port on the router via UPnP-IGD and returns the public
+/// address players connect to. Detects CGNAT (mapping useless) and cleans it up.
+#[tauri::command]
+fn mc_expose_open(id: String, state: tauri::State<AppState>) -> Result<ExposeResult, String> {
+    use igd_next::{search_gateway, AddPortError, PortMappingProtocol, SearchOptions};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    let dir_str = find_stored(&state, &id)?.path;
+    let port = detect::minecraft_port(Path::new(&dir_str));
+    let lan: Ipv4Addr = local_ip()
+        .and_then(|s| s.parse().ok())
+        .ok_or("Could not determine this PC's LAN IP.")?;
+
+    let gateway = search_gateway(SearchOptions::default())
+        .map_err(|_| "No UPnP-capable router found — UPnP may be disabled on your router.")?;
+    let wan = gateway
+        .get_external_ip()
+        .map_err(|e| format!("Could not read the router's public IP: {e}"))?;
+    let cgnat = is_unreachable_wan(wan);
+
+    let local = SocketAddr::new(IpAddr::V4(lan), port);
+    let mut permanent = false;
+    // 12h lease self-heals a crash within a play session; some routers only
+    // accept a permanent (0) lease.
+    match gateway.add_port(PortMappingProtocol::TCP, port, local, 43200, "FoldDeck Minecraft") {
+        Ok(()) => {}
+        Err(AddPortError::OnlyPermanentLeasesSupported) => {
+            gateway
+                .add_port(PortMappingProtocol::TCP, port, local, 0, "FoldDeck Minecraft")
+                .map_err(|e| format!("Router rejected the port mapping: {e}"))?;
+            permanent = true;
+        }
+        Err(e) => return Err(format!("Router rejected the port mapping: {e}")),
+    }
+
+    if cgnat {
+        // A CGNAT mapping is useless — remove it and route the UI to the tunnel fallback.
+        let _ = gateway.remove_port(PortMappingProtocol::TCP, port);
+        return Ok(ExposeResult {
+            public_address: String::new(),
+            external_port: port,
+            wan_ip: wan.to_string(),
+            cgnat: true,
+            permanent,
+        });
+    }
+
+    let public_address = format!("{}:{}", wan, port);
+    state.exposures.lock().unwrap().insert(
+        id,
+        ActiveMapping {
+            external_port: port,
+            public_address: public_address.clone(),
+        },
+    );
+
+    Ok(ExposeResult {
+        public_address,
+        external_port: port,
+        wan_ip: wan.to_string(),
+        cgnat: false,
+        permanent,
+    })
+}
+
+fn remove_mapping(external_port: u16) {
+    use igd_next::{search_gateway, PortMappingProtocol, SearchOptions};
+    if let Ok(gw) = search_gateway(SearchOptions::default()) {
+        let _ = gw.remove_port(PortMappingProtocol::TCP, external_port);
+    }
+}
+
+#[tauri::command]
+fn mc_expose_close(id: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let mapping = state.exposures.lock().unwrap().remove(&id);
+    if let Some(m) = mapping {
+        remove_mapping(m.external_port);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn mc_expose_status(id: String, state: tauri::State<AppState>) -> Option<ExposeStatus> {
+    let exposures = state.exposures.lock().unwrap();
+    let m = exposures.get(&id)?;
+    Some(ExposeStatus {
+        public_address: m.public_address.clone(),
+        external_port: m.external_port,
+    })
+}
+
+/// Adds a Windows Defender Firewall inbound allow rule for the port (elevated,
+/// one UAC prompt). Router forwarding alone isn't enough — Windows must allow it.
+#[tauri::command]
+fn mc_add_firewall_rule(port: u16) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let ps = format!(
+            "Start-Process -Verb RunAs -WindowStyle Hidden netsh -ArgumentList 'advfirewall','firewall','add','rule','name=FoldDeck Minecraft {p}','dir=in','action=allow','protocol=TCP','localport={p}'",
+            p = port
+        );
+        std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &ps])
+            .creation_flags(0x08000000)
+            .status()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = port;
+        Err("Firewall rule is Windows-only.".into())
+    }
+}
+
 #[tauri::command]
 fn read_markdown(
     id: String,
@@ -820,6 +980,7 @@ pub fn run() {
                 store_path,
                 recipes: Mutex::new(recipes::load_recipes(&recipes_dir)),
                 recipes_dir,
+                exposures: Mutex::new(std::collections::HashMap::new()),
             });
             Ok(())
         })
@@ -857,6 +1018,10 @@ pub fn run() {
             accept_minecraft_eula,
             read_minecraft_properties,
             set_minecraft_property,
+            mc_expose_open,
+            mc_expose_close,
+            mc_expose_status,
+            mc_add_firewall_rule,
             read_markdown,
             get_default_clone_dir,
             git_import,
@@ -872,6 +1037,17 @@ pub fn run() {
                 if let Some(state) = app.try_state::<AppState>() {
                     state.manager.stop_all();
                     state.terminals.close_all();
+                    // Tear down any UPnP port mappings so we don't leak open ports.
+                    let ports: Vec<u16> = state
+                        .exposures
+                        .lock()
+                        .unwrap()
+                        .values()
+                        .map(|m| m.external_port)
+                        .collect();
+                    for p in ports {
+                        remove_mapping(p);
+                    }
                 }
             }
         });
@@ -880,6 +1056,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cgnat_and_private_wan_ips_are_unreachable() {
+        use std::net::IpAddr;
+        let un = |s: &str| is_unreachable_wan(s.parse::<IpAddr>().unwrap());
+        // Reachable public IPs.
+        assert!(!un("203.0.113.7"));
+        assert!(!un("8.8.8.8"));
+        // CGNAT 100.64.0.0/10.
+        assert!(un("100.64.0.1"));
+        assert!(un("100.127.255.254"));
+        assert!(!un("100.63.0.1")); // just below the CGNAT range
+        assert!(!un("100.128.0.1")); // just above
+        // RFC1918 private + loopback.
+        assert!(un("192.168.1.1"));
+        assert!(un("10.0.0.5"));
+        assert!(un("172.16.4.4"));
+        assert!(un("127.0.0.1"));
+    }
 
     #[test]
     fn parses_repo_names_from_urls() {
