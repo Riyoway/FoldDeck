@@ -55,6 +55,9 @@ export default function TerminalView({ projectId, cwd }: { projectId: string; cw
     term.loadAddon(fit);
     term.open(el);
     fit.fit();
+    // Re-fit once layout has settled so the grid fills the pane exactly (a
+    // slightly-off initial fit is what leaves a gap/scrollbar).
+    const raf = requestAnimationFrame(() => fit.fit());
 
     const encoder = new TextEncoder();
     term.onData((data) => {
@@ -85,6 +88,7 @@ export default function TerminalView({ projectId, cwd }: { projectId: string; cw
     term.focus();
 
     return () => {
+      cancelAnimationFrame(raf);
       ro.disconnect();
       unlistenOutput.then((f) => f());
       unlistenExit.then((f) => f());
