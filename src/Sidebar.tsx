@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { Button } from "@heroui/react";
-import { GitBranch, GripVertical, LayoutDashboard, PanelLeftClose, Plus } from "lucide-react";
+import {
+  GitBranch,
+  GripVertical,
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+} from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -10,6 +17,8 @@ interface Props {
   statuses: Record<string, ProjectStatus>;
   selectedId: string | null;
   width: number;
+  collapsed: boolean;
+  onToggle: () => void;
   onSelectDashboard: () => void;
   onSelectProject: (id: string) => void;
   onAddFolder: () => void;
@@ -17,7 +26,6 @@ interface Props {
   onResize: (width: number) => void;
   onProjectContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
   onBackgroundContextMenu: (e: React.MouseEvent) => void;
-  onCollapse: () => void;
   onImportGit: () => void;
 }
 
@@ -89,6 +97,8 @@ export default function Sidebar({
   statuses,
   selectedId,
   width,
+  collapsed,
+  onToggle,
   onSelectDashboard,
   onSelectProject,
   onAddFolder,
@@ -96,7 +106,6 @@ export default function Sidebar({
   onResize,
   onProjectContextMenu,
   onBackgroundContextMenu,
-  onCollapse,
   onImportGit,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
@@ -104,8 +113,6 @@ export default function Sidebar({
   const orderRef = useRef(order);
   orderRef.current = order;
 
-  // Keep the local order in sync with the project list (add/remove) except
-  // while a drag is in progress.
   useEffect(() => {
     if (draggingRef.current) return;
     const ids = projects.map((p) => p.id);
@@ -140,13 +147,62 @@ export default function Sidebar({
     window.addEventListener("pointerup", up);
   };
 
+  // Collapsed: a thin rail. The toggle stays at the same top-left spot, so it
+  // never jumps between open and closed.
+  if (collapsed) {
+    return (
+      <aside className="sidebar sidebar-rail" onContextMenu={onBackgroundContextMenu}>
+        <div className="rail-top">
+          <Button isIconOnly size="md" variant="light" title="Show sidebar" aria-label="Show sidebar" onPress={onToggle}>
+            <PanelLeftOpen size={16} />
+          </Button>
+        </div>
+        <button
+          className={`rail-item ${selectedId === null ? "rail-selected" : ""}`}
+          title="Dashboard"
+          onClick={onSelectDashboard}
+        >
+          <LayoutDashboard size={18} />
+        </button>
+        <div className="rail-list">
+          {order.map((id) => {
+            const p = byId.get(id);
+            if (!p) return null;
+            return (
+              <button
+                key={id}
+                className={`rail-item ${id === selectedId ? "rail-selected" : ""}`}
+                title={p.name}
+                onClick={() => onSelectProject(id)}
+                onContextMenu={(e) => onProjectContextMenu(e, p)}
+              >
+                <ProjectIcon project={p} size={18} />
+                {statuses[id]?.running && <span className="rail-dot" />}
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar" style={{ width }} onContextMenu={onBackgroundContextMenu}>
       <div className="sidebar-actions">
         <Button
+          isIconOnly
+          size="md"
+          variant="light"
+          title="Hide sidebar"
+          aria-label="Hide sidebar"
+          onPress={onToggle}
+        >
+          <PanelLeftClose size={16} />
+        </Button>
+        <Button
           size="md"
           className="btn-green sidebar-add"
-          startContent={<Plus size={14} />}
+          startContent={<Plus size={18} strokeWidth={2.5} />}
           onPress={onAddFolder}
         >
           Add folder
@@ -160,16 +216,6 @@ export default function Sidebar({
           onPress={onImportGit}
         >
           <GitBranch size={16} />
-        </Button>
-        <Button
-          isIconOnly
-          size="md"
-          variant="light"
-          aria-label="Collapse sidebar"
-          title="Collapse sidebar"
-          onPress={onCollapse}
-        >
-          <PanelLeftClose size={16} />
         </Button>
       </div>
 

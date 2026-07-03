@@ -23,7 +23,6 @@ import {
   FolderOpen,
   GitBranch,
   Minus,
-  PanelLeftOpen,
   Pencil,
   Play,
   Plus,
@@ -404,11 +403,6 @@ function App() {
   return (
     <div className="app">
       <header className="titlebar" data-tauri-drag-region>
-        {view === "main" && sidebarCollapsed && (
-          <button className="tb-btn tb-toggle" title="Show sidebar" onClick={() => setSidebar(false)}>
-            <PanelLeftOpen size={16} />
-          </button>
-        )}
         <span className="brand" data-tauri-drag-region>
           FoldDeck
         </span>
@@ -446,23 +440,22 @@ function App() {
       )}
 
       <div className="body">
-        {!sidebarCollapsed && (
-          <Sidebar
-            projects={projects}
-            statuses={statuses}
-            selectedId={selectedId}
-            width={sidebarWidth}
-            onSelectDashboard={() => setSelectedId(null)}
-            onSelectProject={selectProject}
-            onAddFolder={addFolder}
-            onReorder={reorderProjects}
-            onResize={changeSidebarWidth}
-            onProjectContextMenu={projectContextMenu}
-            onBackgroundContextMenu={generalContextMenu}
-            onCollapse={() => setSidebar(true)}
-            onImportGit={() => setGitImportOpen(true)}
-          />
-        )}
+        <Sidebar
+          projects={projects}
+          statuses={statuses}
+          selectedId={selectedId}
+          width={sidebarWidth}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebar(!sidebarCollapsed)}
+          onSelectDashboard={() => setSelectedId(null)}
+          onSelectProject={selectProject}
+          onAddFolder={addFolder}
+          onReorder={reorderProjects}
+          onResize={changeSidebarWidth}
+          onProjectContextMenu={projectContextMenu}
+          onBackgroundContextMenu={generalContextMenu}
+          onImportGit={() => setGitImportOpen(true)}
+        />
 
         <main className="detail">
           {!selected ? (

@@ -272,6 +272,80 @@ body.resizing {
   min-width: 0;
 }
 
+/* collapsed rail — toggle stays at the same top-left spot as the open header */
+.sidebar-rail {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.rail-top {
+  align-self: flex-start;
+  padding: 12px 4px 6px 12px;
+}
+
+.rail-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 12px;
+  width: 100%;
+}
+
+.rail-item {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rail-item:hover {
+  background: var(--panel-hover);
+}
+
+.rail-selected,
+.rail-selected:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rail-dot {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 1.5px solid var(--bg);
+}
+
+/* Keep HeroUI bordered inputs calm — no bright hover/focus outline. */
+[data-slot="input-wrapper"][data-hover="true"] {
+  border-color: var(--border-2) !important;
+}
+
+[data-slot="input-wrapper"][data-focus="true"],
+[data-slot="input-wrapper"][data-focus-visible="true"] {
+  border-color: var(--muted) !important;
+}
+
 .sidebar-empty {
   color: var(--muted);
   padding: 18px 14px;

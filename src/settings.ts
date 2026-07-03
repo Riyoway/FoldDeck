@@ -19,7 +19,7 @@ const DEFAULTS: Settings = {
   commandAuditConfirm: true,
   logAutoScroll: true,
   uiZoom: 1,
-  sidebarWidth: 288,
+  sidebarWidth: 272,
   sidebarCollapsed: false,
   detailHeaderHeight: 0,
   fileServerDefault: "ask",
