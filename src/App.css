@@ -1062,6 +1062,27 @@ body.resizing-v {
   flex-wrap: wrap;
 }
 
+.mc-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-copy {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.mc-copy:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
 /* ---- settings ---- */
 
 .settings {

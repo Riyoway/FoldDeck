@@ -645,10 +645,18 @@ fn terminal_close(id: String, state: tauri::State<AppState>) {
 struct MinecraftInfo {
     jar: Option<String>,
     port: u16,
+    lan_ip: Option<String>,
     eula_exists: bool,
     eula_accepted: bool,
     properties_exists: bool,
     needs_first_run: bool,
+}
+
+/// LAN IPv4 of the interface that routes to the internet (no packets sent).
+fn local_ip() -> Option<String> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    sock.connect("8.8.8.8:80").ok()?;
+    sock.local_addr().ok().map(|a| a.ip().to_string())
 }
 
 #[tauri::command]
@@ -660,6 +668,7 @@ fn get_minecraft_info(id: String, state: tauri::State<AppState>) -> Result<Minec
     let properties_exists = dir.join("server.properties").is_file();
     Ok(MinecraftInfo {
         port: detect::minecraft_port(dir),
+        lan_ip: local_ip(),
         eula_accepted: detect::eula_accepted(dir),
         // First run (java -jar) generates eula.txt + server.properties.
         needs_first_run: jar.is_some() && !eula_exists && !properties_exists,

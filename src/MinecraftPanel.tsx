@@ -2,16 +2,35 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@heroui/react";
-import { Check, FolderOpen, ShieldCheck } from "lucide-react";
+import { Check, Copy, FolderOpen, ShieldCheck } from "lucide-react";
 import type { ProjectInfo } from "./App";
 
 interface McInfo {
   jar: string | null;
   port: number;
+  lanIp: string | null;
   eulaExists: boolean;
   eulaAccepted: boolean;
   propertiesExists: boolean;
   needsFirstRun: boolean;
+}
+
+function ConnectAddress({ label, addr }: { label: string; addr: string }) {
+  return (
+    <div className="info-row">
+      <span className="info-key">{label}</span>
+      <span className="info-val mc-addr">
+        <code className="inline-code">{addr}</code>
+        <button
+          className="mc-copy"
+          title="Copy"
+          onClick={() => navigator.clipboard.writeText(addr)}
+        >
+          <Copy size={12} />
+        </button>
+      </span>
+    </div>
+  );
 }
 
 export default function MinecraftPanel({
@@ -58,6 +77,10 @@ export default function MinecraftPanel({
         <span className="info-key">port</span>
         <span className="info-val">{info.port}</span>
       </div>
+      <ConnectAddress label="connect (this PC)" addr={`localhost:${info.port}`} />
+      {info.lanIp && (
+        <ConnectAddress label="connect (LAN)" addr={`${info.lanIp}:${info.port}`} />
+      )}
       <div className="info-row">
         <span className="info-key">config generated</span>
         <span className="info-val">{info.propertiesExists ? "yes (server.properties)" : "no"}</span>
