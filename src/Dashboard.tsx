@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Button, Card, CardBody, Chip, Input, Tooltip } from "@heroui/react";
+import { Button, Card, CardBody, Chip, Input, Select, SelectItem, Tooltip } from "@heroui/react";
 import {
   AlertTriangle,
+  ArrowUpDown,
   Check,
   ChevronDown,
   ChevronRight,
@@ -56,6 +57,7 @@ export default function Dashboard({
     "all",
   );
   const [projectsOpen, setProjectsOpen] = useState(true);
+  const [sort, setSort] = useState<"manual" | "name" | "created" | "category" | "status">("manual");
 
   const refreshPorts = useCallback(() => {
     invoke<PortInfo[]>("get_ports_overview").then(setPorts);
@@ -65,10 +67,6 @@ export default function Dashboard({
 
   const running = projects.filter((p) => statuses[p.id]?.running);
   const warnings = projects.reduce((n, p) => n + p.warnings.length, 0);
-  const portCounts = ports.reduce<Record<number, number>>((m, p) => {
-    m[p.port] = (m[p.port] ?? 0) + 1;
-    return m;
-  }, {});
 
   const savePort = async (projectId: string) => {
     const trimmed = portDraft.trim();
@@ -88,18 +86,32 @@ export default function Dashboard({
   ];
 
   const q = query.trim().toLowerCase();
-  const shown = projects
-    .filter((p) => {
-      if (filter === "pinned" && !p.pinned) return false;
-      if (filter === "running" && !statuses[p.id]?.running) return false;
-      if (filter === "stopped" && statuses[p.id]?.running) return false;
-      if (filter === "warnings" && p.warnings.length === 0) return false;
-      if (q && !(p.name.toLowerCase().includes(q) || (p.framework ?? p.kind).toLowerCase().includes(q)))
-        return false;
-      return true;
-    })
-    // Pinned float to the top.
-    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const shown = projects.filter((p) => {
+    if (filter === "pinned" && !p.pinned) return false;
+    if (filter === "running" && !statuses[p.id]?.running) return false;
+    if (filter === "stopped" && statuses[p.id]?.running) return false;
+    if (filter === "warnings" && p.warnings.length === 0) return false;
+    if (q && !(p.name.toLowerCase().includes(q) || (p.framework ?? p.kind).toLowerCase().includes(q)))
+      return false;
+    return true;
+  });
+  if (sort === "name") shown.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sort === "created") shown.sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+  else if (sort === "category")
+    shown.sort((a, b) => (a.framework ?? a.kind).localeCompare(b.framework ?? b.kind));
+  else if (sort === "status")
+    shown.sort(
+      (a, b) => Number(!!statuses[b.id]?.running) - Number(!!statuses[a.id]?.running),
+    );
+  // Pinned always float to the top (stable — keeps the chosen order within groups).
+  shown.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const SORTS: [typeof sort, string][] = [
+    ["manual", "Manual"],
+    ["name", "Name"],
+    ["created", "Newest"],
+    ["category", "Category"],
+    ["status", "Status"],
+  ];
   const pinnedCount = projects.filter((p) => p.pinned).length;
   const FILTERS: [typeof filter, string][] = [
     ["all", "All"],
@@ -159,6 +171,22 @@ export default function Dashboard({
                   </button>
                 ))}
               </div>
+              <Select
+                size="sm"
+                aria-label="Sort projects"
+                className="dash-sort"
+                selectedKeys={[sort]}
+                onSelectionChange={(keys) => {
+                  const k = Array.from(keys)[0] as typeof sort | undefined;
+                  if (k) setSort(k);
+                }}
+                startContent={<ArrowUpDown size={14} />}
+                renderValue={() => SORTS.find(([s]) => s === sort)?.[1] ?? "Sort"}
+              >
+                {SORTS.map(([s, label]) => (
+                  <SelectItem key={s}>{label}</SelectItem>
+                ))}
+              </Select>
             </div>
           )}
         </div>
@@ -220,10 +248,25 @@ export default function Dashboard({
                       <span className="warn-text">exited ({st.lastExitCode})</span>
                     ) : (
                       <span className="dim">
-                        {p.defaultPort ? `stopped · :${p.defaultPort}` : "stopped"}
+                        {p.defaultPort ? `stopped · ${p.defaultPort}` : "stopped"}
                       </span>
                     )}
                   </div>
+                  {isRunning && st?.networkUrl && (
+                    <div className="proj-card-net">
+                      <span className="dim url-label">Net</span>
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openUrl(st.networkUrl!);
+                        }}
+                      >
+                        {st.networkUrl.replace(/^https?:\/\//, "")}
+                      </a>
+                    </div>
+                  )}
                   <div className="proj-card-actions" onClick={(e) => e.stopPropagation()}>
                     {isRunning ? (
                       <Button
@@ -278,7 +321,6 @@ export default function Dashboard({
               </thead>
               <tbody>
                 {ports.map((p) => {
-                  const conflict = (portCounts[p.port] ?? 0) > 1;
                   const editing = editingPort === p.projectId;
                   return (
                     <tr key={p.projectId} onClick={() => !editing && onSelect(p.projectId)}>
@@ -301,23 +343,27 @@ export default function Dashboard({
                           </span>
                         ) : (
                           <>
-                            :{p.port}
-                            {p.overridden && (
+                            {p.port}
+                            {p.running ? (
                               <Chip size="md" variant="flat" className="port-tag">
-                                custom
+                                actual
                               </Chip>
+                            ) : (
+                              p.overridden && (
+                                <Chip size="md" variant="flat" className="port-tag">
+                                  custom
+                                </Chip>
+                              )
                             )}
                           </>
                         )}
                       </td>
                       <td className="col-project">{p.projectName}</td>
                       <td className="col-status">
-                        {conflict ? (
-                          <span className="warn-text">conflict</span>
-                        ) : p.running ? (
+                        {p.running ? (
                           <span className="ok-text">running</span>
                         ) : p.busy ? (
-                          <span className="warn-text">used by another process</span>
+                          <span className="warn-text">in use — will auto-pick another</span>
                         ) : (
                           <span className="dim">free</span>
                         )}

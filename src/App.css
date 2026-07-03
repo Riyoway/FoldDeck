@@ -1402,6 +1402,10 @@ body.resizing-v {
   font-weight: 600;
 }
 
+.dash-sort {
+  width: 150px;
+}
+
 /* project cards */
 
 .proj-grid {
@@ -1484,6 +1488,26 @@ body.resizing-v {
 }
 
 .proj-card-status a:hover {
+  text-decoration: underline;
+}
+
+.proj-card-net {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.proj-card-net a {
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.proj-card-net a:hover {
   text-decoration: underline;
 }
 

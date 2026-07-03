@@ -73,6 +73,7 @@ export interface ProjectInfo {
   iconDataUri?: string | null;
   fileServer?: string | null;
   pinned?: boolean;
+  created?: number | null;
   docs?: string[];
   warnings: string[];
 }

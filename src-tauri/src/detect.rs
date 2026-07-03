@@ -27,6 +27,8 @@ pub struct ProjectInfo {
     /// File-server mode chosen for unrecognized folders ("builtin" | "python").
     pub file_server: Option<String>,
     pub pinned: bool,
+    /// Folder creation time (epoch seconds), for sorting.
+    pub created: Option<u64>,
     /// Relative paths of markdown docs (README first).
     pub docs: Vec<String>,
     pub warnings: Vec<String>,
@@ -64,6 +66,11 @@ pub fn detect(path: &str) -> ProjectInfo {
         info.icon_data_uri = find_favicon(Path::new(path));
     }
     info.docs = find_docs(Path::new(path));
+    info.created = std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.created().or_else(|_| m.modified()).ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
     info
 }
 
@@ -228,6 +235,7 @@ fn classify(path: &str) -> ProjectInfo {
         icon_data_uri: None,
         file_server: None,
         pinned: false,
+        created: None,
         docs: Vec::new(),
         warnings: Vec::new(),
     };
