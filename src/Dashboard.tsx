@@ -241,10 +241,17 @@ export default function Dashboard({
                   : null);
               const canStart =
                 !!p.startCommand || p.kind === "static-site" || p.kind === "unknown";
+              const cardState = isRunning
+                ? "running"
+                : st?.crashCount
+                  ? "crashed"
+                  : (st?.lastExitCode != null && st.lastExitCode !== 0) || p.depsInstalled === false
+                    ? "warn"
+                    : "stopped";
               return (
                 <div
                   key={p.id}
-                  className={`proj-card ${isRunning ? "proj-card-on" : ""}`}
+                  className={`proj-card proj-card--${cardState}`}
                   role="button"
                   tabIndex={0}
                   aria-label={`Open ${p.name}`}
@@ -268,15 +275,15 @@ export default function Dashboard({
                     )}
                   </div>
                   <div className="proj-card-meta">
-                    {p.framework ?? p.kind}
-                    {p.runtime ? ` · ${p.runtime}` : ""}
+                    <span className="proj-tag">{p.framework ?? p.kind}</span>
+                    {p.runtime ? `${p.runtime}` : ""}
                     <span className="proj-card-path" title={p.path}>
-                      {" · "}
+                      {p.runtime ? " · " : ""}
                       {p.path.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}
                     </span>
                   </div>
                   <div className="proj-card-status">
-                    <span className={`st ${isRunning ? "st-on" : ""}`} />
+                    <span className="st" />
                     {isRunning ? (
                       <>
                         {url ? (

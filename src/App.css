@@ -1621,6 +1621,7 @@ body.resizing-v {
 }
 
 .proj-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -1646,20 +1647,82 @@ body.resizing-v {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.proj-card-on {
-  border-left: 3px solid var(--green);
-  padding-left: 11px;
+/* State rail (replaces the old border-left + padding hack, so running and
+   stopped cards are geometrically identical). */
+.proj-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+}
+
+.proj-card--running::before {
+  background: var(--green);
+}
+
+.proj-card--crashed::before {
+  background: var(--red);
+}
+
+.proj-card--warn::before {
+  background: var(--amber);
+}
+
+/* Whole-card running wash — a 5% solid mix, not a gradient. */
+.proj-card--running {
+  background: color-mix(in srgb, var(--green) 5%, var(--panel));
+}
+
+.proj-card--running:hover {
+  background: color-mix(in srgb, var(--green) 7%, var(--panel-hover));
+}
+
+/* State-colored status dot (base .st is the grey stopped dot). */
+.proj-card--running .st {
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 0 6px rgba(63, 185, 80, 0.55);
+}
+
+.proj-card--crashed .st {
+  background: var(--red);
+  border-color: var(--red);
+  box-shadow: 0 0 6px rgba(248, 81, 73, 0.5);
+}
+
+.proj-card--warn .st {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+/* Framework as a hairline outline tag; recede the path. */
+.proj-tag {
+  display: inline-block;
+  vertical-align: baseline;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  border: 1px solid var(--border-2);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-right: 6px;
 }
 
 .proj-card-path {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  opacity: 0.7;
 }
 
 .proj-card-uptime {
   margin-left: auto;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .dash-empty-filtered {
@@ -1709,9 +1772,9 @@ body.resizing-v {
   background: var(--panel-hover);
 }
 
-.proj-grid-compact .proj-card-on {
-  border-left: 3px solid var(--green);
-  padding-left: 9px;
+/* Square the state rail for the flush list rows. */
+.proj-grid-compact .proj-card::before {
+  border-radius: 0;
 }
 
 .proj-grid-compact .proj-card-head {
@@ -1770,7 +1833,8 @@ body.resizing-v {
   flex: 1;
   min-width: 0;
   font-weight: 600;
-  font-size: 14.5px;
+  font-size: 14px;
+  letter-spacing: -0.1px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1786,8 +1850,9 @@ body.resizing-v {
 }
 
 .proj-card-meta {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--muted);
+  opacity: 0.9;
   font-family: var(--font-mono);
   overflow: hidden;
   white-space: nowrap;
@@ -1838,7 +1903,13 @@ body.resizing-v {
 .proj-card-actions {
   display: flex;
   gap: 7px;
-  margin-top: 3px;
+  margin-top: auto; /* pin actions to the card bottom so rows align */
+}
+
+/* Floor comfortable cards to a common height so the optional Net line and the
+   grid's row-stretch don't leave ragged, top-heavy cards. */
+.proj-grid:not(.proj-grid-compact) .proj-card {
+  min-height: 116px;
 }
 
 /* ports table */
