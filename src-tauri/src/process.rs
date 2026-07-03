@@ -225,18 +225,23 @@ impl ProcessManager {
         }
 
         let mut cmd = Command::new("cmd");
-        cmd.args(["/C", &command])
-            .current_dir(&project.path)
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // raw_arg keeps the command's quotes intact. Command::args escapes
+            // quotes as \" which cmd.exe doesn't understand, so `-jar "x.jar"`
+            // reached java as \"x.jar\" and failed ("Unable to access jarfile").
+            cmd.raw_arg("/C").raw_arg(&command);
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        #[cfg(not(windows))]
+        cmd.arg("/C").arg(&command);
+        cmd.current_dir(&project.path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null());
         for (k, v) in extra_env {
             cmd.env(k, v);
-        }
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
         let mut child = cmd.spawn().map_err(|e| format!("Failed to start: {}", e))?;
 
