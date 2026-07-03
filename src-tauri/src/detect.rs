@@ -26,6 +26,7 @@ pub struct ProjectInfo {
     pub icon_data_uri: Option<String>,
     /// File-server mode chosen for unrecognized folders ("builtin" | "python").
     pub file_server: Option<String>,
+    pub pinned: bool,
     /// Relative paths of markdown docs (README first).
     pub docs: Vec<String>,
     pub warnings: Vec<String>,
@@ -157,6 +158,7 @@ fn classify(path: &str) -> ProjectInfo {
         deps_installed: None,
         icon_data_uri: None,
         file_server: None,
+        pinned: false,
         docs: Vec::new(),
         warnings: Vec::new(),
     };

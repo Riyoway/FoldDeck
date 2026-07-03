@@ -2,7 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Card, CardBody, Chip, Input, Tooltip } from "@heroui/react";
-import { AlertTriangle, Check, ExternalLink, Pencil, Play, Search, Square, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Pencil,
+  Pin,
+  Play,
+  Search,
+  Square,
+  X,
+} from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -40,7 +52,10 @@ export default function Dashboard({
   const [editingPort, setEditingPort] = useState<string | null>(null);
   const [portDraft, setPortDraft] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "running" | "stopped" | "warnings">("all");
+  const [filter, setFilter] = useState<"all" | "pinned" | "running" | "stopped" | "warnings">(
+    "all",
+  );
+  const [projectsOpen, setProjectsOpen] = useState(true);
 
   const refreshPorts = useCallback(() => {
     invoke<PortInfo[]>("get_ports_overview").then(setPorts);
@@ -73,16 +88,22 @@ export default function Dashboard({
   ];
 
   const q = query.trim().toLowerCase();
-  const shown = projects.filter((p) => {
-    if (filter === "running" && !statuses[p.id]?.running) return false;
-    if (filter === "stopped" && statuses[p.id]?.running) return false;
-    if (filter === "warnings" && p.warnings.length === 0) return false;
-    if (q && !(p.name.toLowerCase().includes(q) || (p.framework ?? p.kind).toLowerCase().includes(q)))
-      return false;
-    return true;
-  });
+  const shown = projects
+    .filter((p) => {
+      if (filter === "pinned" && !p.pinned) return false;
+      if (filter === "running" && !statuses[p.id]?.running) return false;
+      if (filter === "stopped" && statuses[p.id]?.running) return false;
+      if (filter === "warnings" && p.warnings.length === 0) return false;
+      if (q && !(p.name.toLowerCase().includes(q) || (p.framework ?? p.kind).toLowerCase().includes(q)))
+        return false;
+      return true;
+    })
+    // Pinned float to the top.
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const pinnedCount = projects.filter((p) => p.pinned).length;
   const FILTERS: [typeof filter, string][] = [
     ["all", "All"],
+    ...(pinnedCount > 0 ? ([["pinned", "Pinned"]] as [typeof filter, string][]) : []),
     ["running", "Running"],
     ["stopped", "Stopped"],
     ["warnings", "Warnings"],
@@ -103,7 +124,14 @@ export default function Dashboard({
         </div>
 
         <div className="dash-projects-head">
-          <h2 className="dash-h dash-h-inline">Projects</h2>
+          <button
+            className="dash-h dash-h-inline dash-collapse"
+            onClick={() => setProjectsOpen((v) => !v)}
+            title={projectsOpen ? "Collapse" : "Expand"}
+          >
+            {projectsOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            Projects <span className="counter">{shown.length}</span>
+          </button>
           {projects.length > 6 && (
             <div className="dash-toolbar">
               <div className="dash-search">
@@ -134,7 +162,7 @@ export default function Dashboard({
             </div>
           )}
         </div>
-        {projects.length === 0 ? (
+        {!projectsOpen ? null : projects.length === 0 ? (
           <p className="dim dash-empty">Drop a folder anywhere to add your first project.</p>
         ) : shown.length === 0 ? (
           <p className="dim dash-empty">No projects match.</p>
@@ -160,6 +188,7 @@ export default function Dashboard({
                   <div className="proj-card-head">
                     <ProjectIcon project={p} size={16} />
                     <span className="proj-card-name">{p.name}</span>
+                    {p.pinned && <Pin size={12} className="proj-pin" aria-label="Pinned" />}
                     {p.warnings.length > 0 && (
                       <span className="proj-warn" title={`${p.warnings.length} warning(s)`}>
                         <AlertTriangle size={12} /> {p.warnings.length}

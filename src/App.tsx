@@ -24,6 +24,8 @@ import {
   GitBranch,
   Minus,
   Pencil,
+  Pin,
+  PinOff,
   Play,
   Plus,
   RotateCw,
@@ -70,6 +72,7 @@ export interface ProjectInfo {
   depsInstalled?: boolean | null;
   iconDataUri?: string | null;
   fileServer?: string | null;
+  pinned?: boolean;
   docs?: string[];
   warnings: string[];
 }
@@ -304,6 +307,16 @@ function App() {
         : null);
     const canStart = !!p.startCommand || p.kind === "static-site" || p.kind === "unknown";
     return [
+      {
+        key: "pin",
+        label: p.pinned ? "Unpin" : "Pin",
+        icon: p.pinned ? <PinOff size={14} /> : <Pin size={14} />,
+        onClick: async () => {
+          await invoke("set_pinned", { id: p.id, pinned: !p.pinned });
+          await refreshProjects();
+        },
+      },
+      { key: "d0", divider: true },
       isRunning
         ? { key: "stop", label: "Stop", icon: <Square size={14} />, onClick: () => call("stop_project", { id: p.id }) }
         : { key: "start", label: "Start", icon: <Play size={14} />, disabled: !canStart, onClick: () => start(p) },

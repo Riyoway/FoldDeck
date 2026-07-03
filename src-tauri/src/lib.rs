@@ -25,6 +25,8 @@ struct StoredProject {
     port: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     file_server: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pinned: bool,
 }
 
 pub struct AppState {
@@ -54,6 +56,7 @@ fn load_store(store: &Path) -> Vec<StoredProject> {
                     name: None,
                     port: None,
                     file_server: None,
+                    pinned: false,
                 })
                 .collect()
         })
@@ -92,6 +95,7 @@ fn project_info_with(stored: &StoredProject, recipes: &[recipes::Recipe]) -> Pro
         info.default_port = stored.port;
     }
     info.file_server = stored.file_server.clone();
+    info.pinned = stored.pinned;
     if info.kind == "unknown" && info.file_server.is_some() && info.framework.is_none() {
         info.framework = Some("File Server".into());
     }
@@ -131,6 +135,7 @@ fn add_project(path: String, state: tauri::State<AppState>) -> Result<ProjectInf
             name: None,
             port: None,
             file_server: None,
+            pinned: false,
         });
         save_store(&state.store_path, &projects);
     }
@@ -203,6 +208,11 @@ fn set_project_port(
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     update_stored(&state, &id, |p| p.port = port)
+}
+
+#[tauri::command]
+fn set_pinned(id: String, pinned: bool, state: tauri::State<AppState>) -> Result<(), String> {
+    update_stored(&state, &id, |p| p.pinned = pinned)
 }
 
 #[tauri::command]
@@ -689,6 +699,7 @@ pub fn run() {
             set_start_command,
             set_project_name,
             set_project_port,
+            set_pinned,
             set_file_server,
             start_file_server,
             get_request_stats,

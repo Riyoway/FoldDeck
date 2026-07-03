@@ -1286,6 +1286,33 @@ body.resizing-v {
   margin: 0;
 }
 
+.dash-collapse {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dash-collapse:hover {
+  color: var(--text);
+}
+
+.proj-pin {
+  color: var(--accent);
+  flex-shrink: 0;
+  transform: rotate(30deg);
+}
+
 .dash-toolbar {
   display: flex;
   align-items: center;

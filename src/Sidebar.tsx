@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
   Plus,
   Search,
   X,
@@ -144,6 +145,25 @@ export default function Sidebar({
       })
     : order;
 
+  const pinnedIds = order.filter((id) => byId.get(id)?.pinned);
+  const restIds = order.filter((id) => !byId.get(id)?.pinned);
+
+  const plainRow = (id: string) => {
+    const p = byId.get(id);
+    if (!p) return null;
+    return (
+      <div
+        key={id}
+        className={`row ${id === selectedId ? "row-selected" : ""}`}
+        onClick={() => onSelectProject(id)}
+        onContextMenu={(e) => onProjectContextMenu(e, p)}
+      >
+        <span className="grip-spacer" />
+        <RowInner project={p} running={!!statuses[id]?.running} />
+      </div>
+    );
+  };
+
   const handleDragStart = () => {
     draggingRef.current = true;
     document.body.classList.add("dragging-row");
@@ -274,51 +294,54 @@ export default function Sidebar({
               )}
             </div>
           )}
-          <div className="group-label">
-            Projects{" "}
-            <span className="counter">
-              {query ? `${filtered.length}/${projects.length}` : projects.length}
-            </span>
-          </div>
           {query ? (
-            filtered.length === 0 ? (
-              <div className="sidebar-empty">No matches.</div>
-            ) : (
-              filtered.map((id) => {
-                const p = byId.get(id);
-                if (!p) return null;
-                return (
-                  <div
-                    key={id}
-                    className={`row ${id === selectedId ? "row-selected" : ""}`}
-                    onClick={() => onSelectProject(id)}
-                    onContextMenu={(e) => onProjectContextMenu(e, p)}
-                  >
-                    <span className="grip-spacer" />
-                    <RowInner project={p} running={!!statuses[id]?.running} />
-                  </div>
-                );
-              })
-            )
+            <>
+              <div className="group-label">
+                Results <span className="counter">{filtered.length}</span>
+              </div>
+              {filtered.length === 0 ? (
+                <div className="sidebar-empty">No matches.</div>
+              ) : (
+                filtered.map((id) => plainRow(id))
+              )}
+            </>
           ) : (
-            <Reorder.Group axis="y" values={order} onReorder={setOrder} as="div">
-              {order.map((id) => {
-                const p = byId.get(id);
-                if (!p) return null;
-                return (
-                  <ProjectRow
-                    key={id}
-                    project={p}
-                    running={!!statuses[id]?.running}
-                    selected={id === selectedId}
-                    onSelect={onSelectProject}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onContextMenu={onProjectContextMenu}
-                  />
-                );
-              })}
-            </Reorder.Group>
+            <>
+              {pinnedIds.length > 0 && (
+                <>
+                  <div className="group-label">
+                    <Pin size={11} /> Pinned <span className="counter">{pinnedIds.length}</span>
+                  </div>
+                  {pinnedIds.map((id) => plainRow(id))}
+                </>
+              )}
+              <div className="group-label">
+                Projects <span className="counter">{restIds.length}</span>
+              </div>
+              <Reorder.Group
+                axis="y"
+                values={restIds}
+                onReorder={(newRest) => setOrder([...pinnedIds, ...newRest])}
+                as="div"
+              >
+                {restIds.map((id) => {
+                  const p = byId.get(id);
+                  if (!p) return null;
+                  return (
+                    <ProjectRow
+                      key={id}
+                      project={p}
+                      running={!!statuses[id]?.running}
+                      selected={id === selectedId}
+                      onSelect={onSelectProject}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onContextMenu={onProjectContextMenu}
+                    />
+                  );
+                })}
+              </Reorder.Group>
+            </>
           )}
         </div>
       )}
