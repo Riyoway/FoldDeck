@@ -1,6 +1,30 @@
-import { Boxes, Folder, Globe, Server, Terminal } from "lucide-react";
-import { siDiscord, siDocker, siNodedotjs, siPython } from "simple-icons";
+import { AppWindow, Boxes, Folder, Globe, Server, Terminal } from "lucide-react";
+import {
+  siDiscord,
+  siDocker,
+  siDeno,
+  siElectron,
+  siGo,
+  siNodedotjs,
+  siPhp,
+  siPython,
+  siRuby,
+  siRust,
+  siTauri,
+  type SimpleIcon,
+} from "simple-icons";
 import type { ProjectInfo } from "./App";
+
+/** simple-icons brand for a runtime, when there is a recognizable one. */
+const RUNTIME_BRAND: Record<string, SimpleIcon> = {
+  python: siPython,
+  node: siNodedotjs,
+  go: siGo,
+  rust: siRust,
+  php: siPhp,
+  ruby: siRuby,
+  deno: siDeno,
+};
 
 function Brand({ path, hex, size }: { path: string; hex: string; size: number }) {
   return (
@@ -45,15 +69,21 @@ export default function ProjectIcon({ project, size = 15 }: { project: ProjectIn
   if (project.subtype === "discord") return <Brand path={siDiscord.path} hex={siDiscord.hex} size={size} />;
   if (project.subtype === "minecraft") return <MinecraftIcon size={size} />;
   if (project.kind === "docker-compose") return <Brand path={siDocker.path} hex={siDocker.hex} size={size} />;
+  if (project.kind === "desktop-app") {
+    if (project.subtype === "rust-webview") return <Brand path={siTauri.path} hex={siTauri.hex} size={size} />;
+    if (project.subtype === "electron") return <Brand path={siElectron.path} hex={siElectron.hex} size={size} />;
+    return <AppWindow size={size} color="#58a6ff" style={{ flexShrink: 0 }} aria-hidden="true" />;
+  }
+  const brand = project.runtime ? RUNTIME_BRAND[project.runtime] : undefined;
   if (project.kind === "worker" || project.kind === "bot") {
-    if (project.runtime === "python") return <Brand path={siPython.path} hex={siPython.hex} size={size} />;
-    if (project.runtime === "node") return <Brand path={siNodedotjs.path} hex={siNodedotjs.hex} size={size} />;
+    if (brand) return <Brand path={brand.path} hex={brand.hex} size={size} />;
     return <Terminal size={size} style={{ flexShrink: 0 }} aria-hidden="true" />;
   }
   if (project.kind === "web-app" || project.kind === "static-site") {
     return <Globe size={size} color="#58a6ff" style={{ flexShrink: 0 }} aria-hidden="true" />;
   }
   if (project.kind === "backend-server") {
+    if (brand) return <Brand path={brand.path} hex={brand.hex} size={size} />;
     return <Server size={size} color="#58a6ff" style={{ flexShrink: 0 }} aria-hidden="true" />;
   }
   if (project.kind === "game-server") {

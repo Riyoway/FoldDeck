@@ -10,7 +10,7 @@ pub struct ProjectInfo {
     pub id: String,
     pub path: String,
     pub name: String,
-    /// web-app | static-site | backend-server | bot | worker | game-server | docker-compose | unknown
+    /// web-app | static-site | backend-server | desktop-app | bot | worker | game-server | docker-compose | unknown
     pub kind: String,
     pub subtype: Option<String>,
     pub framework: Option<String>,
@@ -240,24 +240,55 @@ fn classify(path: &str) -> ProjectInfo {
         warnings: Vec::new(),
     };
 
-    if detect_compose(dir, &mut info) {
-        return info;
-    }
-    if detect_minecraft(dir, &mut info) {
-        return info;
-    }
-    if detect_node(dir, &mut info) {
-        return info;
-    }
-    if detect_python(dir, &mut info) {
-        return info;
+    // Order matters: desktop (Tauri/Electron) must precede detect_node so a
+    // package.json app isn't mislaunched as a plain frontend; php/ruby precede
+    // node because Laravel/Rails ship an asset package.json.
+    let detectors: [fn(&Path, &mut ProjectInfo) -> bool; 12] = [
+        detect_compose,
+        detect_minecraft,
+        detect_desktop,
+        detect_php,
+        detect_ruby,
+        detect_node,
+        detect_deno,
+        detect_jvm,
+        detect_dotnet,
+        detect_go,
+        detect_rust,
+        detect_python,
+    ];
+    for d in detectors {
+        if d(dir, &mut info) {
+            return info;
+        }
     }
     if dir.join("index.html").is_file() {
         info.kind = "static-site".into();
         info.framework = Some("Static HTML".into());
-        return info;
     }
     info
+}
+
+/// Maps (package manager, script) to the run command. pnpm/yarn take the script
+/// directly; npm/bun need the `run` verb.
+fn pm_run(pm: &str, script: &str) -> String {
+    match pm {
+        "npm" | "bun" => format!("{} run {}", pm, script),
+        _ => format!("{} {}", pm, script),
+    }
+}
+
+/// Reads package.json once: returns (parsed value, dependency names).
+fn read_package_json(dir: &Path) -> Option<(serde_json::Value, Vec<String>)> {
+    let raw = std::fs::read_to_string(dir.join("package.json")).ok()?;
+    let pkg: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let mut deps = Vec::new();
+    for key in ["dependencies", "devDependencies"] {
+        if let Some(map) = pkg.get(key).and_then(|d| d.as_object()) {
+            deps.extend(map.keys().cloned());
+        }
+    }
+    Some((pkg, deps))
 }
 
 fn detect_compose(dir: &Path, info: &mut ProjectInfo) -> bool {
@@ -274,6 +305,422 @@ fn detect_compose(dir: &Path, info: &mut ProjectInfo) -> bool {
     info.runtime = Some("docker".into());
     info.framework = Some("Docker Compose".into());
     info.start_command = Some("docker compose up".into());
+    true
+}
+
+fn load_node_scripts(pkg: &serde_json::Value, info: &mut ProjectInfo) {
+    if let Some(scripts) = pkg.get("scripts").and_then(|s| s.as_object()) {
+        for (k, v) in scripts {
+            if let Some(cmd) = v.as_str() {
+                info.scripts.insert(k.clone(), cmd.to_string());
+            }
+        }
+    }
+}
+
+fn node_modules_warning(dir: &Path, info: &mut ProjectInfo) {
+    let installed = dir.join("node_modules").is_dir();
+    info.deps_installed = Some(installed);
+    if !installed {
+        info.warnings
+            .push("Dependencies are not installed (node_modules missing).".into());
+    }
+}
+
+/// A package.json script body that launches the Electron window (not a renderer
+/// bundler or a packager).
+fn is_electron_launcher(body: &str) -> bool {
+    let b = body.to_lowercase();
+    if b.contains("electron-builder") || b.contains("electron-packager") || b.contains("electron-rebuild") {
+        return false;
+    }
+    b.contains("electron-vite dev")
+        || b.contains("electron-forge start")
+        || b.contains("electron .")
+        || b.starts_with("electron ")
+        || b.contains("&& electron ")
+        || b.contains("npx electron")
+}
+
+/// Tauri (src-tauri) and Electron desktop apps. Runs before detect_node so the
+/// app is launched properly, not as a bare frontend dev server.
+fn detect_desktop(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let pkg = read_package_json(dir);
+    let has = |d: &str| {
+        pkg.as_ref()
+            .map(|(_, deps)| deps.iter().any(|x| x == d))
+            .unwrap_or(false)
+    };
+    let tauri_conf = dir.join("src-tauri").join("tauri.conf.json").is_file();
+    let is_tauri = tauri_conf || has("@tauri-apps/cli") || has("@tauri-apps/api");
+    let is_electron = has("electron");
+    if !is_tauri && !is_electron {
+        return false;
+    }
+    info.kind = "desktop-app".into();
+
+    if is_tauri {
+        info.subtype = Some("rust-webview".into());
+        info.runtime = Some("rust".into());
+        info.framework = Some("Tauri".into());
+        info.default_port = Some(1420);
+        if let Some((pkg, _)) = &pkg {
+            load_node_scripts(pkg, info);
+        }
+        if has("@tauri-apps/cli") {
+            detect_node_package_manager(dir, info);
+            let pm = info.package_manager.as_deref().unwrap_or("npm");
+            // `<pm> tauri dev` — the tauri CLI runs beforeDevCommand + the window.
+            info.start_command = Some(format!("{} dev", pm_run(pm, "tauri")));
+            node_modules_warning(dir, info);
+        } else {
+            // Pure-Rust Tauri (no JS CLI dep) uses the cargo subcommand.
+            info.start_command = Some("cargo tauri dev".into());
+        }
+        return true;
+    }
+
+    // Electron.
+    info.subtype = Some("electron".into());
+    info.runtime = Some("node".into());
+    let forge = has("@electron-forge/cli")
+        || dir.join("forge.config.js").is_file()
+        || dir.join("forge.config.ts").is_file()
+        || pkg
+            .as_ref()
+            .and_then(|(p, _)| p.get("config").and_then(|c| c.get("forge")))
+            .is_some();
+    info.framework = Some(
+        if has("electron-vite") {
+            info.default_port = Some(5173);
+            "electron-vite"
+        } else if forge {
+            "Electron Forge"
+        } else {
+            "Electron"
+        }
+        .into(),
+    );
+    if let Some((pkg, _)) = &pkg {
+        load_node_scripts(pkg, info);
+    }
+    detect_node_package_manager(dir, info);
+    node_modules_warning(dir, info);
+    let pm = info.package_manager.as_deref().unwrap_or("npm").to_string();
+    // Pick the script whose body actually launches Electron (never a bundler).
+    info.start_command = ["dev", "start"]
+        .iter()
+        .find(|k| info.scripts.get(**k).map(|b| is_electron_launcher(b)).unwrap_or(false))
+        .map(|k| pm_run(&pm, k))
+        .or_else(|| {
+            info.scripts
+                .iter()
+                .find(|(_, b)| is_electron_launcher(b))
+                .map(|(k, _)| pm_run(&pm, k))
+        })
+        .or_else(|| Some("npx electron .".into()));
+    true
+}
+
+fn detect_php(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let composer = std::fs::read_to_string(dir.join("composer.json")).unwrap_or_default();
+    let has_artisan = dir.join("artisan").is_file();
+    let public_index = dir.join("public").join("index.php").is_file();
+    let root_index = dir.join("index.php").is_file();
+    if composer.is_empty() && !has_artisan && !root_index && !public_index {
+        return false;
+    }
+    info.runtime = Some("php".into());
+    let comp = composer.to_lowercase();
+    let php_serve = if public_index {
+        "php -S localhost:8000 -t public"
+    } else {
+        "php -S localhost:8000"
+    };
+    if has_artisan || comp.contains("laravel/framework") {
+        info.kind = "web-app".into();
+        info.framework = Some("Laravel".into());
+        info.subtype = Some("mvc".into());
+        info.default_port = Some(8000);
+        info.start_command = Some("php artisan serve".into());
+        if !dir.join("vendor").is_dir() {
+            info.warnings.push("PHP dependencies not installed (run composer install).".into());
+        }
+        if !dir.join(".env").is_file() {
+            info.warnings
+                .push(".env is missing (copy .env.example, then php artisan key:generate).".into());
+        }
+    } else if comp.contains("symfony/framework-bundle") || dir.join("bin").join("console").is_file() {
+        info.kind = "web-app".into();
+        info.framework = Some("Symfony".into());
+        info.default_port = Some(8000);
+        info.start_command = Some(php_serve.into());
+    } else if root_index || public_index {
+        info.kind = "web-app".into();
+        info.framework = Some("PHP".into());
+        info.default_port = Some(8000);
+        info.start_command = Some(php_serve.into());
+    } else {
+        info.kind = "worker".into();
+        info.framework = Some("PHP".into());
+    }
+    true
+}
+
+fn detect_ruby(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let gemfile = std::fs::read_to_string(dir.join("Gemfile")).unwrap_or_default();
+    let has_configru = dir.join("config.ru").is_file();
+    if gemfile.is_empty() && !has_configru {
+        return false;
+    }
+    info.runtime = Some("ruby".into());
+    let g = gemfile.to_lowercase();
+    if g.contains("rails")
+        || dir.join("bin").join("rails").is_file()
+        || dir.join("config").join("application.rb").is_file()
+    {
+        info.kind = "web-app".into();
+        info.framework = Some("Ruby on Rails".into());
+        info.subtype = Some("mvc".into());
+        info.default_port = Some(3000);
+        info.start_command = Some(if dir.join("bin").join("rails").is_file() {
+            "bin/rails server".into()
+        } else {
+            "rails server".into()
+        });
+        if !dir.join("Gemfile.lock").is_file() {
+            info.warnings.push("Ruby gems not installed (run bundle install).".into());
+        }
+    } else if g.contains("sinatra") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Sinatra".into());
+        info.default_port = Some(4567);
+        info.start_command = ["app.rb", "server.rb", "main.rb"]
+            .iter()
+            .find(|f| dir.join(f).is_file())
+            .map(|f| format!("ruby {}", f))
+            .or(Some("bundle exec rackup".into()));
+    } else if has_configru {
+        info.kind = "backend-server".into();
+        info.framework = Some("Rack".into());
+        info.default_port = Some(9292);
+        info.start_command = Some("bundle exec rackup".into());
+    } else {
+        info.kind = "worker".into();
+        info.framework = Some("Ruby".into());
+    }
+    true
+}
+
+fn detect_jvm(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let pom = std::fs::read_to_string(dir.join("pom.xml")).unwrap_or_default();
+    let gradle = std::fs::read_to_string(dir.join("build.gradle")).unwrap_or_default();
+    let gradle_kts = std::fs::read_to_string(dir.join("build.gradle.kts")).unwrap_or_default();
+    let is_maven = !pom.is_empty();
+    let is_gradle = !gradle.is_empty() || !gradle_kts.is_empty();
+    if !is_maven && !is_gradle {
+        return false;
+    }
+    let text = format!("{}\n{}\n{}", pom, gradle, gradle_kts).to_lowercase();
+    info.runtime = Some("java".into());
+    // Prefer the project's wrapper; on Windows that's the .cmd/.bat script.
+    let mvn = if dir.join("mvnw.cmd").is_file() { "./mvnw.cmd" } else { "mvn" };
+    let gw = if dir.join("gradlew.bat").is_file() { "./gradlew.bat" } else { "gradle" };
+
+    if text.contains("spring-boot") {
+        info.kind = "web-app".into();
+        info.framework = Some("Spring Boot".into());
+        info.subtype = Some("spring-boot".into());
+        info.default_port = Some(8080);
+        info.start_command = Some(if is_maven {
+            format!("{} spring-boot:run", mvn)
+        } else {
+            format!("{} bootRun", gw)
+        });
+    } else if text.contains("quarkus") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Quarkus".into());
+        info.default_port = Some(8080);
+        info.start_command = Some(if is_maven {
+            format!("{} quarkus:dev", mvn)
+        } else {
+            format!("{} quarkusDev", gw)
+        });
+    } else if text.contains("io.ktor") || text.contains("ktor-server") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Ktor".into());
+        info.runtime = Some("kotlin".into());
+        info.default_port = Some(8080);
+        info.start_command = Some(format!("{} run", gw));
+    } else if text.contains("micronaut") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Micronaut".into());
+        info.default_port = Some(8080);
+        info.start_command = Some(if is_maven {
+            format!("{} mn:run", mvn)
+        } else {
+            format!("{} run", gw)
+        });
+    } else {
+        // Generic JVM project — no reliable run command to guess.
+        info.kind = "worker".into();
+        info.framework = Some(if is_maven { "Maven" } else { "Gradle" }.into());
+    }
+    true
+}
+
+fn dotnet_port(dir: &Path) -> Option<u16> {
+    let raw = std::fs::read_to_string(dir.join("Properties").join("launchSettings.json")).ok()?;
+    let pos = raw.find("http://localhost:")?;
+    let rest = &raw[pos + "http://localhost:".len()..];
+    rest.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().ok()
+}
+
+fn detect_dotnet(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let csproj = std::fs::read_dir(dir).into_iter().flatten().flatten().find_map(|e| {
+        let n = e.file_name().to_string_lossy().to_lowercase();
+        n.ends_with(".csproj").then(|| e.path())
+    });
+    let Some(csproj_path) = csproj else {
+        return false;
+    };
+    info.runtime = Some("dotnet".into());
+    let content = std::fs::read_to_string(&csproj_path).unwrap_or_default().to_lowercase();
+    if content.contains("microsoft.net.sdk.web") || content.contains("microsoft.aspnetcore") {
+        info.kind = "web-app".into();
+        info.framework = Some("ASP.NET Core".into());
+        info.subtype = Some("aspnet".into());
+        info.default_port = Some(dotnet_port(dir).unwrap_or(5000));
+    } else {
+        info.kind = "worker".into();
+        info.framework = Some(".NET".into());
+    }
+    info.start_command = Some("dotnet run".into());
+    true
+}
+
+fn detect_go(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let gomod = std::fs::read_to_string(dir.join("go.mod")).unwrap_or_default();
+    if gomod.is_empty() {
+        return false;
+    }
+    info.runtime = Some("go".into());
+    let g = gomod.to_lowercase();
+    // Wails is a Go desktop app, not a plain `go run` server.
+    if dir.join("wails.json").is_file() || g.contains("wailsapp/wails") {
+        info.kind = "desktop-app".into();
+        info.subtype = Some("go-webview".into());
+        info.framework = Some("Wails".into());
+        info.default_port = Some(34115);
+        info.start_command = Some("wails dev".into());
+        return true;
+    }
+    let fw = if g.contains("gin-gonic/gin") {
+        Some(("Gin", 8080u16))
+    } else if g.contains("labstack/echo") {
+        Some(("Echo", 1323))
+    } else if g.contains("gofiber/fiber") {
+        Some(("Fiber", 3000))
+    } else if g.contains("go-chi/chi") {
+        Some(("Chi", 8080))
+    } else {
+        None
+    };
+    let has_main = dir.join("main.go").is_file()
+        || std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|e| e.file_name().to_string_lossy().ends_with(".go"));
+    match fw {
+        Some((name, port)) => {
+            info.kind = "backend-server".into();
+            info.framework = Some(name.into());
+            info.default_port = Some(port);
+            info.start_command = Some("go run .".into());
+        }
+        None if has_main => {
+            info.kind = "backend-server".into();
+            info.framework = Some("Go".into());
+            info.default_port = Some(8080);
+            info.start_command = Some("go run .".into());
+        }
+        None => {
+            info.kind = "worker".into();
+            info.framework = Some("Go".into());
+        }
+    }
+    true
+}
+
+fn detect_rust(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let cargo = std::fs::read_to_string(dir.join("Cargo.toml")).unwrap_or_default();
+    if cargo.is_empty() {
+        return false;
+    }
+    info.runtime = Some("rust".into());
+    let c = cargo.to_lowercase();
+    let runnable = dir.join("src").join("main.rs").is_file() || c.contains("[[bin]]");
+    let fw = if c.contains("axum") {
+        Some(("Axum", 3000u16))
+    } else if c.contains("actix-web") {
+        Some(("Actix Web", 8080))
+    } else if c.contains("rocket") {
+        Some(("Rocket", 8000))
+    } else if c.contains("warp") {
+        Some(("Warp", 3030))
+    } else {
+        None
+    };
+    match fw {
+        Some((name, port)) => {
+            info.kind = "backend-server".into();
+            info.framework = Some(name.into());
+            info.default_port = Some(port);
+            info.start_command = Some("cargo run".into());
+        }
+        None => {
+            info.kind = "worker".into();
+            info.framework = Some("Rust".into());
+            if runnable {
+                info.start_command = Some("cargo run".into());
+            }
+        }
+    }
+    true
+}
+
+fn detect_deno(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let cfg = ["deno.json", "deno.jsonc"].iter().find(|f| dir.join(f).is_file());
+    if cfg.is_none() && !dir.join("deno.lock").is_file() {
+        return false;
+    }
+    info.runtime = Some("deno".into());
+    let cfg_text = cfg
+        .map(|f| std::fs::read_to_string(dir.join(f)).unwrap_or_default())
+        .unwrap_or_default()
+        .to_lowercase();
+    if cfg_text.contains("$fresh") || cfg_text.contains("fresh/") || dir.join("fresh.gen.ts").is_file() {
+        info.kind = "web-app".into();
+        info.framework = Some("Fresh".into());
+        info.default_port = Some(8000);
+        info.start_command = Some("deno task start".into());
+        return true;
+    }
+    info.kind = "backend-server".into();
+    info.framework = Some("Deno".into());
+    info.default_port = Some(8000);
+    let has_task = |t: &str| cfg_text.contains(&format!("\"{}\"", t));
+    info.start_command = if has_task("dev") {
+        Some("deno task dev".into())
+    } else if has_task("start") {
+        Some("deno task start".into())
+    } else {
+        ["main.ts", "server.ts", "mod.ts", "index.ts"]
+            .iter()
+            .find(|f| dir.join(f).is_file())
+            .map(|f| format!("deno run -A {}", f))
+    };
     true
 }
 
@@ -374,40 +821,73 @@ fn detect_node(dir: &Path, info: &mut ProjectInfo) -> bool {
     }
     let has = |d: &str| deps.iter().any(|x| x == d);
 
+    // (kind, framework, default_port). Specific SSG/meta-frameworks are checked
+    // before the generic `vite` catch since they all depend on Vite.
+    let web = |info: &mut ProjectInfo, fw: &str, port: u16| {
+        info.kind = "web-app".into();
+        info.framework = Some(fw.into());
+        info.default_port = Some(port);
+    };
+    let ssg = |info: &mut ProjectInfo, fw: &str, port: u16| {
+        info.kind = "static-site".into();
+        info.framework = Some(fw.into());
+        info.default_port = Some(port);
+    };
+    let backend = |info: &mut ProjectInfo, fw: &str, port: u16| {
+        info.kind = "backend-server".into();
+        info.framework = Some(fw.into());
+        info.default_port = Some(port);
+    };
+
     if NODE_DISCORD_DEPS.iter().any(|d| has(d)) {
         info.kind = "bot".into();
         info.subtype = Some("discord".into());
-        info.framework = NODE_DISCORD_DEPS
-            .iter()
-            .find(|d| has(d))
-            .map(|d| d.to_string());
+        info.framework = NODE_DISCORD_DEPS.iter().find(|d| has(d)).map(|d| d.to_string());
     } else if has("next") {
-        info.kind = "web-app".into();
-        info.framework = Some("Next.js".into());
-        info.default_port = Some(3000);
+        web(info, "Next.js", 3000);
     } else if has("nuxt") {
-        info.kind = "web-app".into();
-        info.framework = Some("Nuxt".into());
-        info.default_port = Some(3000);
+        web(info, "Nuxt", 3000);
+    } else if has("@angular/core") || dir.join("angular.json").is_file() {
+        web(info, "Angular", 4200);
+    } else if has("@vue/cli-service") {
+        web(info, "Vue CLI", 8080);
+    } else if has("gatsby") {
+        ssg(info, "Gatsby", 8000);
+    } else if has("@docusaurus/core") {
+        ssg(info, "Docusaurus", 3000);
+    } else if has("vitepress") {
+        ssg(info, "VitePress", 5173);
+    } else if has("@11ty/eleventy") {
+        ssg(info, "Eleventy", 8080);
+    } else if has("@builder.io/qwik-city") || has("@builder.io/qwik") {
+        web(info, "Qwik", 5173);
+    } else if has("@solidjs/start") {
+        web(info, "SolidStart", 3000);
+    } else if has("@react-router/dev") || has("@remix-run/dev") {
+        web(info, "Remix", 5173);
     } else if has("astro") {
-        info.kind = "web-app".into();
-        info.framework = Some("Astro".into());
-        info.default_port = Some(4321);
+        web(info, "Astro", 4321);
     } else if has("@sveltejs/kit") {
-        info.kind = "web-app".into();
-        info.framework = Some("SvelteKit".into());
-        info.default_port = Some(5173);
+        web(info, "SvelteKit", 5173);
+    } else if has("@nestjs/core") {
+        backend(info, "NestJS", 3000);
+    } else if has("@adonisjs/core") {
+        backend(info, "AdonisJS", 3333);
+    } else if has("sails") {
+        backend(info, "Sails.js", 1337);
+    } else if has("@strapi/strapi") {
+        backend(info, "Strapi", 1337);
+    } else if has("@medusajs/medusa") || has("@medusajs/framework") {
+        backend(info, "Medusa", 9000);
     } else if has("vite") {
-        info.kind = "web-app".into();
-        info.framework = Some("Vite".into());
-        info.default_port = Some(5173);
+        web(info, "Vite", 5173);
     } else if has("react-scripts") {
-        info.kind = "web-app".into();
-        info.framework = Some("Create React App".into());
-        info.default_port = Some(3000);
-    } else if has("express") || has("fastify") || has("koa") || has("hono") || has("@nestjs/core") {
+        web(info, "Create React App", 3000);
+    } else if has("elysia") {
+        backend(info, "Elysia", 3000);
+    } else if has("express") || has("fastify") || has("koa") || has("hono") {
         info.kind = "backend-server".into();
-        info.framework = ["express", "fastify", "koa", "hono", "@nestjs/core"]
+        info.framework = ["express", "fastify", "koa", "hono"]
             .iter()
             .find(|d| has(d))
             .map(|d| d.to_string());
@@ -464,20 +944,17 @@ fn node_start_command(
     pkg: &serde_json::Value,
 ) -> Option<String> {
     let pm = info.package_manager.as_deref().unwrap_or("npm");
-    let run = |script: &str| match pm {
-        "npm" => format!("npm run {}", script),
-        "bun" => format!("bun run {}", script),
-        _ => format!("{} {}", pm, script),
-    };
-    // Bots prefer `start` (production run); apps prefer `dev` (local dev server).
-    let order: [&str; 2] = if info.kind == "bot" {
-        ["start", "dev"]
+    // Bots prefer `start` (production run); apps prefer a dev server. The broad
+    // order covers framework-specific dev scripts (Nest start:dev, Gatsby/Strapi
+    // develop, Vue CLI/Angular serve, VitePress docs:dev).
+    let order: &[&str] = if info.kind == "bot" {
+        &["start", "dev"]
     } else {
-        ["dev", "start"]
+        &["dev", "develop", "serve", "start:dev", "docs:dev", "start"]
     };
     for s in order {
-        if info.scripts.contains_key(s) {
-            return Some(run(s));
+        if info.scripts.contains_key(*s) {
+            return Some(pm_run(pm, s));
         }
     }
     for f in ["index.js", "bot.js", "src/index.js"] {
@@ -505,6 +982,18 @@ fn detect_python(dir: &Path, info: &mut ProjectInfo) -> bool {
     }
     info.runtime = Some("python".into());
     let deps = format!("{}\n{}", req, pyproject).to_lowercase();
+    let entry = |cands: &[&str]| cands.iter().find(|f| dir.join(f).is_file()).map(|f| f.to_string());
+    // `module:app` guess for ASGI/WSGI servers (from the entry file's stem).
+    let module = ["main", "app", "server", "asgi", "wsgi"]
+        .iter()
+        .find(|f| dir.join(format!("{}.py", f)).is_file())
+        .copied()
+        .unwrap_or("main");
+    let has_ipynb = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| e.file_name().to_string_lossy().to_lowercase().ends_with(".ipynb"));
 
     if PY_DISCORD_MARKERS.iter().any(|m| deps.contains(m)) {
         info.kind = "bot".into();
@@ -514,34 +1003,69 @@ fn detect_python(dir: &Path, info: &mut ProjectInfo) -> bool {
         info.kind = "backend-server".into();
         info.framework = Some("Django".into());
         info.default_port = Some(8000);
-    } else if deps.contains("fastapi") || deps.contains("starlette") {
+        info.start_command = Some("python manage.py runserver".into());
+    } else if deps.contains("streamlit") {
+        info.kind = "web-app".into();
+        info.framework = Some("Streamlit".into());
+        info.default_port = Some(8501);
+        let e = entry(&["streamlit_app.py", "app.py", "main.py"]).unwrap_or_else(|| "app.py".into());
+        info.start_command = Some(format!("streamlit run {}", e));
+    } else if deps.contains("gradio") {
+        info.kind = "web-app".into();
+        info.framework = Some("Gradio".into());
+        info.default_port = Some(7860);
+        info.start_command = entry(&["app.py", "main.py"]).map(|e| format!("python {}", e));
+    } else if deps.contains("jupyter") || deps.contains("notebook") || has_ipynb {
+        info.kind = "web-app".into();
+        info.framework = Some("Jupyter".into());
+        info.default_port = Some(8888);
+        info.start_command = Some("jupyter lab".into());
+    } else if deps.contains("fastapi") || deps.contains("starlette") || deps.contains("uvicorn") {
         info.kind = "backend-server".into();
-        info.framework = Some("FastAPI".into());
+        info.framework = Some(if deps.contains("fastapi") { "FastAPI" } else { "Uvicorn" }.into());
         info.default_port = Some(8000);
+        info.start_command = Some(format!("uvicorn {}:app --reload", module));
+    } else if deps.contains("sanic") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Sanic".into());
+        info.default_port = Some(8000);
+        info.start_command = Some(format!("sanic {}:app --dev", module));
+    } else if deps.contains("gunicorn") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Gunicorn".into());
+        info.default_port = Some(8000);
+        info.start_command = Some(format!("gunicorn {}:app --reload --bind 127.0.0.1:8000", module));
     } else if deps.contains("flask") {
         info.kind = "backend-server".into();
         info.framework = Some("Flask".into());
         info.default_port = Some(5000);
+    } else if deps.contains("tornado") {
+        info.kind = "backend-server".into();
+        info.framework = Some("Tornado".into());
+        info.default_port = Some(8888);
+    } else if deps.contains("aiohttp") {
+        info.kind = "backend-server".into();
+        info.framework = Some("aiohttp".into());
+        info.default_port = Some(8080);
     } else {
         info.kind = "worker".into();
     }
 
     info.package_manager = Some(if dir.join("uv.lock").is_file() { "uv" } else { "pip" }.to_string());
 
-    info.start_command = if dir.join("manage.py").is_file() {
-        Some("python manage.py runserver".into())
-    } else {
-        // Bots prefer bot.py; everything else takes the first conventional entry point.
+    // Frameworks above that didn't set a command (Flask/Tornado/aiohttp/worker/
+    // bot) fall back to running a conventional entry file.
+    if info.start_command.is_none() {
         let order: &[&str] = if info.kind == "bot" {
             &["bot.py", "main.py", "app.py"]
         } else {
             &["main.py", "app.py", "server.py", "bot.py"]
         };
-        order
+        info.start_command = order
             .iter()
             .find(|f| dir.join(f).is_file())
-            .map(|f| format!("python {}", f))
-    };
+            .map(|f| format!("python {}", f));
+    }
 
     if !dir.join(".venv").is_dir() && !dir.join("venv").is_dir() {
         info.warnings
@@ -679,6 +1203,105 @@ mod tests {
         assert_eq!(info.kind, "bot");
         assert_eq!(info.runtime.as_deref(), Some("python"));
         assert_eq!(info.start_command.as_deref(), Some("python bot.py"));
+    }
+
+    #[test]
+    fn detects_tauri_desktop_app_not_frontend() {
+        let dir = tmp(
+            "tauri",
+            &[
+                (
+                    "package.json",
+                    r#"{"devDependencies":{"@tauri-apps/cli":"^2","vite":"^5"},"scripts":{"dev":"vite","tauri":"tauri"}}"#,
+                ),
+                ("src-tauri/tauri.conf.json", r#"{"identifier":"com.x.app"}"#),
+                ("pnpm-lock.yaml", ""),
+            ],
+        );
+        let info = detect(dir.to_str().unwrap());
+        assert_eq!(info.kind, "desktop-app");
+        assert_eq!(info.framework.as_deref(), Some("Tauri"));
+        // NOT "pnpm dev" (that would only start Vite in a browser).
+        assert_eq!(info.start_command.as_deref(), Some("pnpm tauri dev"));
+    }
+
+    #[test]
+    fn detects_electron_by_script_body() {
+        let dir = tmp(
+            "electron",
+            &[(
+                "package.json",
+                r#"{"devDependencies":{"electron":"^30"},"scripts":{"dev":"vite","start":"electron ."}}"#,
+            )],
+        );
+        let info = detect(dir.to_str().unwrap());
+        assert_eq!(info.kind, "desktop-app");
+        assert_eq!(info.subtype.as_deref(), Some("electron"));
+        // "dev" is the renderer bundler; the launcher is "start".
+        assert_eq!(info.start_command.as_deref(), Some("npm run start"));
+    }
+
+    #[test]
+    fn detects_go_rust_dotnet_backends() {
+        let go = tmp(
+            "go",
+            &[("go.mod", "module x\nrequire github.com/gin-gonic/gin v1.9.0\n"), ("main.go", "")],
+        );
+        let gi = detect(go.to_str().unwrap());
+        assert_eq!(gi.kind, "backend-server");
+        assert_eq!(gi.framework.as_deref(), Some("Gin"));
+        assert_eq!(gi.start_command.as_deref(), Some("go run ."));
+
+        let rs = tmp(
+            "rust-axum",
+            &[("Cargo.toml", "[dependencies]\naxum = \"0.7\"\ntokio = \"1\"\n"), ("src/main.rs", "")],
+        );
+        let ri = detect(rs.to_str().unwrap());
+        assert_eq!(ri.framework.as_deref(), Some("Axum"));
+        assert_eq!(ri.start_command.as_deref(), Some("cargo run"));
+
+        let net = tmp(
+            "aspnet",
+            &[("App.csproj", r#"<Project Sdk="Microsoft.NET.Sdk.Web"></Project>"#)],
+        );
+        let ni = detect(net.to_str().unwrap());
+        assert_eq!(ni.framework.as_deref(), Some("ASP.NET Core"));
+        assert_eq!(ni.start_command.as_deref(), Some("dotnet run"));
+    }
+
+    #[test]
+    fn detects_php_ruby_jvm_web() {
+        let laravel = tmp(
+            "laravel",
+            &[("artisan", ""), ("composer.json", r#"{"require":{"laravel/framework":"^11"}}"#)],
+        );
+        let li = detect(laravel.to_str().unwrap());
+        assert_eq!(li.framework.as_deref(), Some("Laravel"));
+        assert_eq!(li.start_command.as_deref(), Some("php artisan serve"));
+
+        let rails = tmp("rails", &[("Gemfile", "gem 'rails'\n"), ("bin/rails", "")]);
+        let ri = detect(rails.to_str().unwrap());
+        assert_eq!(ri.framework.as_deref(), Some("Ruby on Rails"));
+        assert_eq!(ri.start_command.as_deref(), Some("bin/rails server"));
+
+        let spring = tmp("spring", &[("pom.xml", "<project>spring-boot-starter-web</project>")]);
+        let si = detect(spring.to_str().unwrap());
+        assert_eq!(si.framework.as_deref(), Some("Spring Boot"));
+        assert_eq!(si.start_command.as_deref(), Some("mvn spring-boot:run"));
+    }
+
+    #[test]
+    fn detects_streamlit_and_deno() {
+        let st = tmp("streamlit", &[("requirements.txt", "streamlit\n"), ("app.py", "")]);
+        let si = detect(st.to_str().unwrap());
+        assert_eq!(si.kind, "web-app");
+        assert_eq!(si.framework.as_deref(), Some("Streamlit"));
+        assert_eq!(si.start_command.as_deref(), Some("streamlit run app.py"));
+
+        let dn = tmp("deno", &[("deno.json", r#"{"tasks":{"dev":"deno run -A main.ts"}}"#)]);
+        let di = detect(dn.to_str().unwrap());
+        assert_eq!(di.runtime.as_deref(), Some("deno"));
+        assert_eq!(di.start_command.as_deref(), Some("deno task dev"));
     }
 
     #[test]
