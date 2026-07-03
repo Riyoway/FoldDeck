@@ -2,6 +2,7 @@
   color-scheme: dark;
   --bg: #0b0b0c;
   --bg-deep: #050506;
+  --input-bg: #0e0e10;
   --panel: #141416;
   --panel-hover: #1c1c1f;
   --border: #26262a;
@@ -1081,6 +1082,91 @@ body.resizing-v {
 .mc-copy:hover {
   color: var(--text);
   background: var(--panel-hover);
+}
+
+.mc-mem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mc-mem-input {
+  width: 68px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.mc-mem-input:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.mc-props-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.mc-props-head {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.mc-props {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 6px 16px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.mc-prop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-prop-key {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-prop-val {
+  width: 130px;
+  flex-shrink: 0;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.mc-prop-val:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.mc-props-note {
+  margin-top: 10px;
+  font-size: 12px;
 }
 
 /* ---- settings ---- */

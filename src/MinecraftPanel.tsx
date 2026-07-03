@@ -15,17 +15,20 @@ interface McInfo {
   needsFirstRun: boolean;
 }
 
+interface PropEntry {
+  key: string;
+  value: string;
+}
+
+const MEM_PRESETS = ["1G", "2G", "4G", "6G", "8G"];
+
 function ConnectAddress({ label, addr }: { label: string; addr: string }) {
   return (
     <div className="info-row">
       <span className="info-key">{label}</span>
       <span className="info-val mc-addr">
         <code className="inline-code">{addr}</code>
-        <button
-          className="mc-copy"
-          title="Copy"
-          onClick={() => navigator.clipboard.writeText(addr)}
-        >
+        <button className="mc-copy" title="Copy" onClick={() => navigator.clipboard.writeText(addr)}>
           <Copy size={12} />
         </button>
       </span>
@@ -44,6 +47,7 @@ export default function MinecraftPanel({
 }) {
   const [info, setInfo] = useState<McInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [props, setProps] = useState<PropEntry[] | null>(null);
 
   const load = useCallback(() => {
     invoke<McInfo>("get_minecraft_info", { id: project.id })
@@ -52,6 +56,27 @@ export default function MinecraftPanel({
   }, [project.id]);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    if (!info?.propertiesExists) return;
+    invoke<PropEntry[]>("read_minecraft_properties", { id: project.id })
+      .then(setProps)
+      .catch(() => setProps(null));
+  }, [info?.propertiesExists, project.id]);
+
+  const mem = project.startCommand?.match(/-Xmx(\S+)/)?.[1] ?? "2G";
+
+  const applyMemory = async (m: string) => {
+    const jar = info?.jar ?? "server.jar";
+    const cur = project.startCommand ?? `java -Xmx2G -jar "${jar}" nogui`;
+    let c = /-Xmx\S+/.test(cur) ? cur.replace(/-Xmx\S+/, `-Xmx${m}`) : cur.replace(/\bjava\b/, `java -Xmx${m}`);
+    c = /-Xms\S+/.test(c) ? c.replace(/-Xms\S+/, `-Xms${m}`) : c.replace(/-Xmx\S+/, (x) => `${x} -Xms${m}`);
+    await invoke("set_start_command", { id: project.id, command: c });
+    onChanged();
+  };
+
+  const saveProp = (key: string, value: string) =>
+    invoke("set_minecraft_property", { id: project.id, key, value }).catch(() => {});
 
   const acceptEula = async () => {
     setError(null);
@@ -78,19 +103,41 @@ export default function MinecraftPanel({
         <span className="info-val">{info.port}</span>
       </div>
       <ConnectAddress label="connect (this PC)" addr={`localhost:${info.port}`} />
-      {info.lanIp && (
-        <ConnectAddress label="connect (LAN)" addr={`${info.lanIp}:${info.port}`} />
-      )}
-      <div className="info-row">
-        <span className="info-key">config generated</span>
-        <span className="info-val">{info.propertiesExists ? "yes (server.properties)" : "no"}</span>
-      </div>
+      {info.lanIp && <ConnectAddress label="connect (LAN)" addr={`${info.lanIp}:${info.port}`} />}
       <div className="info-row">
         <span className="info-key">EULA</span>
         <span className={`info-val ${info.eulaAccepted ? "ok-text" : "warn-text"}`}>
           {info.eulaAccepted ? "accepted" : info.eulaExists ? "not accepted" : "not generated yet"}
         </span>
       </div>
+
+      {info.jar && (
+        <div className="info-row">
+          <span className="info-key">memory (RAM)</span>
+          <span className="info-val mc-mem">
+            {MEM_PRESETS.map((m) => (
+              <button
+                key={m}
+                className={`dash-filter ${mem === m ? "dash-filter-on" : ""}`}
+                onClick={() => applyMemory(m)}
+              >
+                {m}
+              </button>
+            ))}
+            <input
+              className="mc-mem-input"
+              defaultValue={mem}
+              key={mem}
+              spellCheck={false}
+              title="Custom (e.g. 3G, 512M)"
+              onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== mem && applyMemory(e.target.value.trim())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+            />
+          </span>
+        </div>
+      )}
 
       <div className="mc-setup">
         {info.jar == null ? (
@@ -121,11 +168,7 @@ export default function MinecraftPanel({
               . Clicking accept writes <code className="inline-code">eula=true</code> on your behalf.
             </p>
             <div className="mc-actions">
-              <Button
-                color="primary"
-                startContent={<ShieldCheck size={15} />}
-                onPress={acceptEula}
-              >
+              <Button color="primary" startContent={<ShieldCheck size={15} />} onPress={acceptEula}>
                 Accept EULA
               </Button>
               <Button
@@ -138,25 +181,40 @@ export default function MinecraftPanel({
             </div>
           </>
         ) : (
-          <>
-            <p className="ok-text">
-              <Check size={15} style={{ verticalAlign: "-2px" }} /> EULA accepted — ready to start.
-            </p>
-            <div className="mc-actions">
-              <Button color="primary" onPress={onStart}>
-                Start server
-              </Button>
-              <Button
-                variant="flat"
-                startContent={<FolderOpen size={15} />}
-                onPress={() => invoke("open_folder", { path: project.path })}
-              >
-                Open folder
-              </Button>
-            </div>
-          </>
+          <p className="ok-text">
+            <Check size={15} style={{ verticalAlign: "-2px" }} /> EULA accepted — ready to start.
+          </p>
         )}
       </div>
+
+      {props && props.length > 0 && (
+        <div className="mc-props-section">
+          <div className="mc-props-head">server.properties</div>
+          <div className="mc-props">
+            {props.map((p) => (
+              <label key={p.key} className="mc-prop">
+                <span className="mc-prop-key" title={p.key}>{p.key}</span>
+                <input
+                  className="mc-prop-val"
+                  defaultValue={p.value}
+                  spellCheck={false}
+                  onBlur={(e) => {
+                    const v = e.target.value;
+                    if (v !== p.value) {
+                      p.value = v;
+                      saveProp(p.key, v);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="dim mc-props-note">Restart the server to apply changes.</p>
+        </div>
+      )}
     </div>
   );
 }

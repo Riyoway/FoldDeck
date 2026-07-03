@@ -708,6 +708,66 @@ fn accept_minecraft_eula(id: String, state: tauri::State<AppState>) -> Result<()
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+struct PropEntry {
+    key: String,
+    value: String,
+}
+
+#[tauri::command]
+fn read_minecraft_properties(
+    id: String,
+    state: tauri::State<AppState>,
+) -> Result<Vec<PropEntry>, String> {
+    let dir_str = find_stored(&state, &id)?.path;
+    let raw = std::fs::read_to_string(Path::new(&dir_str).join("server.properties"))
+        .map_err(|_| "server.properties not generated yet — start the server once.".to_string())?;
+    Ok(raw
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#') && l.contains('='))
+        .filter_map(|l| {
+            let (k, v) = l.split_once('=')?;
+            Some(PropEntry {
+                key: k.trim().to_string(),
+                value: v.trim().to_string(),
+            })
+        })
+        .collect())
+}
+
+/// Updates one server.properties key, preserving other lines and comments.
+#[tauri::command]
+fn set_minecraft_property(
+    id: String,
+    key: String,
+    value: String,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    let dir_str = find_stored(&state, &id)?.path;
+    let path = Path::new(&dir_str).join("server.properties");
+    let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    // No newlines in a properties value.
+    let value = value.replace(['\n', '\r'], "");
+    let mut found = false;
+    let mut out: Vec<String> = raw
+        .lines()
+        .map(|l| {
+            if l.split_once('=').map(|(k, _)| k.trim() == key).unwrap_or(false)
+                && !l.trim_start().starts_with('#')
+            {
+                found = true;
+                format!("{}={}", key, value)
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    if !found {
+        out.push(format!("{}={}", key, value));
+    }
+    std::fs::write(&path, out.join("\n") + "\n").map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn read_markdown(
     id: String,
@@ -795,6 +855,8 @@ pub fn run() {
             create_env_from_example,
             get_minecraft_info,
             accept_minecraft_eula,
+            read_minecraft_properties,
+            set_minecraft_property,
             read_markdown,
             get_default_clone_dir,
             git_import,
