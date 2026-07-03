@@ -1187,6 +1187,19 @@ body.resizing-v {
   line-height: 1.5;
 }
 
+/* Icon + text on one line (Tailwind preflight makes svg display:block). */
+.mc-icon-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.mc-icon-line svg {
+  flex-shrink: 0;
+  position: relative;
+  top: 2px;
+}
+
 .mc-warn-list {
   margin: 4px 0 12px;
   padding-left: 18px;

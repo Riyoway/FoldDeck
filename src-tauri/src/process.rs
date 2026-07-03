@@ -11,6 +11,34 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const LOG_BUFFER_LINES: usize = 2000;
 
+/// PowerShell prelude: refresh PATH from the registry (Machine + User) so tools
+/// installed after the app launched — java, node, package managers — resolve.
+const PATH_REFRESH: &str = "$env:Path=($env:Path+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User'));";
+
+/// The single place every command is run: PowerShell (same as the Terminal tab)
+/// with PATH refreshed and, optionally, the working directory set. Callers add
+/// stdio/env and spawn. Keeps Start, Doctor, and dependency audits in ONE
+/// environment so what runs and what's detected never disagree.
+pub fn shell_command(dir: Option<&str>, script: &str) -> Command {
+    let mut full = String::from(PATH_REFRESH);
+    if let Some(d) = dir {
+        full.push_str(&format!(" Set-Location -LiteralPath '{}';", d.replace('\'', "''")));
+    }
+    full.push(' ');
+    full.push_str(script);
+    let mut cmd = Command::new("powershell.exe");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // raw_arg keeps the script's quotes intact (Command::args escapes them).
+        cmd.raw_arg("-NoLogo").raw_arg("-Command").raw_arg(&full);
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    #[cfg(not(windows))]
+    cmd.arg("-NoLogo").arg("-Command").arg(&full);
+    cmd
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectStatus {
@@ -224,24 +252,9 @@ impl ProcessManager {
             return Err("Project is already running.".into());
         }
 
-        // Run through PowerShell (same as the Terminal tab) and refresh PATH from
-        // the registry (Machine + User) so tools installed after the app started
-        // — e.g. java — are found even though the inherited PATH is stale. Then
-        // Set-Location keeps the project dir. raw_arg keeps the command's quotes.
-        let ps_command = format!(
-            "$env:Path=($env:Path+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')); Set-Location -LiteralPath '{}'; {}",
-            project.path.replace('\'', "''"),
-            command
-        );
-        let mut cmd = Command::new("powershell.exe");
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.raw_arg("-NoLogo").raw_arg("-Command").raw_arg(&ps_command);
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
-        #[cfg(not(windows))]
-        cmd.arg("-Command").arg(&ps_command);
+        // Every command runs through the one shell helper (PowerShell + PATH
+        // refresh + Set-Location) so Start, Doctor and audits share an env.
+        let mut cmd = shell_command(Some(&project.path), &command);
         cmd.current_dir(&project.path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -471,17 +484,8 @@ impl ProcessManager {
             }
         }
         if let Some((cmd, dir)) = on_stop {
-            let mut stop_cmd = Command::new("powershell.exe");
-            stop_cmd
-                .args(["-NoLogo", "-Command", &cmd])
-                .current_dir(dir)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                stop_cmd.creation_flags(0x08000000);
-            }
+            let mut stop_cmd = shell_command(Some(&dir), &cmd);
+            stop_cmd.stdout(Stdio::null()).stderr(Stdio::null());
             let _ = stop_cmd.spawn();
         }
         Ok(())

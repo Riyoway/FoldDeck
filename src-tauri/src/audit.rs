@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,14 +49,18 @@ pub fn audit_command(command: &str) -> Vec<String> {
 }
 
 fn on_path(bin: &str) -> bool {
-    let mut cmd = Command::new("where");
-    cmd.arg(bin).stdout(Stdio::null()).stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
-    }
-    cmd.status().map(|s| s.success()).unwrap_or(false)
+    // Resolve exactly as the runner launches commands (PowerShell + refreshed
+    // PATH), so Doctor never reports "not installed" for a tool Start can run.
+    let script = format!(
+        "if (Get-Command '{}' -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}",
+        bin.replace('\'', "''")
+    );
+    crate::process::shell_command(None, &script)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn port_busy(port: u16) -> bool {
@@ -233,15 +237,8 @@ pub fn dependency_audit(dir: &str, pm: &str) -> Result<DependencyAuditResult, St
     if pm != "npm" && pm != "pnpm" {
         return Ok(unsupported());
     }
-    let mut cmd = Command::new("cmd");
-    cmd.args(["/C", &format!("{} audit --json", pm)])
-        .current_dir(dir)
-        .stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
-    }
+    let mut cmd = crate::process::shell_command(Some(dir), &format!("{} audit --json", pm));
+    cmd.stdin(Stdio::null());
     // Audit commands exit non-zero when vulnerabilities exist; parse stdout regardless.
     let output = cmd.output().map_err(|e| format!("Failed to run {} audit: {}", pm, e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);

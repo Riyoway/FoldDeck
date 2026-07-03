@@ -151,8 +151,8 @@ function ExposeSection({
 
       {state === "open" && (
         <>
-          <p className="ok-text">
-            <ShieldCheck size={15} style={{ verticalAlign: "-2px" }} /> Open — internet players can join.
+          <p className="ok-text mc-icon-line">
+            <ShieldCheck size={15} /> Open — internet players can join.
           </p>
           <ConnectAddress label="internet players" addr={addr} />
           <ConnectAddress label="LAN players" addr={`${lanIp ?? "your-lan-ip"}:${port}`} />
@@ -183,10 +183,9 @@ function ExposeSection({
 
       {state === "cgnat" && (
         <>
-          <p className="warn-text">
-            <ShieldAlert size={15} style={{ verticalAlign: "-2px" }} /> Your router is behind
-            carrier-grade NAT (WAN IP {result?.wanIp}), so port forwarding can't make this server
-            reachable.
+          <p className="warn-text mc-icon-line">
+            <ShieldAlert size={15} /> Your router is behind carrier-grade NAT (WAN IP{" "}
+            {result?.wanIp}), so port forwarding can't make this server reachable.
           </p>
           <FallbackBlock port={port} />
           <div className="mc-actions">
@@ -384,8 +383,8 @@ export default function MinecraftPanel({
             </div>
           </>
         ) : (
-          <p className="ok-text">
-            <Check size={15} style={{ verticalAlign: "-2px" }} /> EULA accepted — ready to start.
+          <p className="ok-text mc-icon-line">
+            <Check size={15} /> EULA accepted — ready to start.
           </p>
         )}
       </div>
