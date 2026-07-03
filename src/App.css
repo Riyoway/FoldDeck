@@ -2117,6 +2117,20 @@ body.resizing-v {
   padding-left: 26px;
 }
 
+/* Keep README badges inline (Tailwind preflight makes img display:block) and
+   scale large images/screenshots to fit. */
+.md-body img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+.md-body p[align="center"],
+.md-body div[align="center"] {
+  text-align: center;
+}
+
 .md-body li {
   margin: 4px 0;
 }
