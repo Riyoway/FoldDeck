@@ -961,6 +961,37 @@ fn read_markdown(
     std::fs::read_to_string(&full).map_err(|e| e.to_string())
 }
 
+/// Returns a project-relative image referenced by a README as a data URI.
+/// Path-guarded to stay inside the project (no traversal) and image types only,
+/// so a malicious README can't read arbitrary files.
+#[tauri::command]
+fn read_doc_image(id: String, path: String, state: tauri::State<AppState>) -> Result<String, String> {
+    use base64::Engine;
+    let dir = find_stored(&state, &id)?.path;
+    let root = Path::new(&dir).canonicalize().map_err(|e| e.to_string())?;
+    let full = root.join(&path).canonicalize().map_err(|_| "Image not found.".to_string())?;
+    if !full.starts_with(&root) {
+        return Err("Path is outside the project.".into());
+    }
+    let mime = match full.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref() {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("webp") => "image/webp",
+        Some("bmp") => "image/bmp",
+        Some("ico") => "image/x-icon",
+        Some("avif") => "image/avif",
+        _ => return Err("Unsupported image type.".into()),
+    };
+    let meta = full.metadata().map_err(|e| e.to_string())?;
+    if meta.len() > 8 * 1024 * 1024 {
+        return Err("Image is too large to display.".into());
+    }
+    let bytes = std::fs::read(&full).map_err(|e| e.to_string())?;
+    Ok(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(&bytes)))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1018,6 +1049,7 @@ pub fn run() {
             accept_minecraft_eula,
             read_minecraft_properties,
             set_minecraft_property,
+            read_doc_image,
             mc_expose_open,
             mc_expose_close,
             mc_expose_status,

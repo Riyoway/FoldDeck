@@ -1,10 +1,52 @@
 import { useEffect, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { ProjectInfo } from "./App";
+
+// rehype-raw renders README HTML (badges, <p align>); rehype-sanitize then
+// strips anything executable (script/iframe/on*-handlers/javascript: URLs) so a
+// cloned/untrusted README can't run code. We re-allow only safe presentational
+// attributes (align + img sizing) that the sanitizer drops by default.
+const SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    "*": [...(defaultSchema.attributes?.["*"] ?? []), "align"],
+    img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height"],
+  },
+};
+
+const ABSOLUTE = /^(https?:|data:)/i;
+
+/** A project-relative README image, loaded as a path-guarded data URI. */
+function DocImage({
+  project,
+  dir,
+  src,
+  ...rest
+}: {
+  project: ProjectInfo;
+  dir: string;
+  src: string;
+} & React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [resolved, setResolved] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const rel = [dir, src.replace(/^\.\//, "")].filter(Boolean).join("/");
+    let live = true;
+    invoke<string>("read_doc_image", { id: project.id, path: rel })
+      .then((uri) => live && setResolved(uri))
+      .catch(() => live && setResolved(undefined));
+    return () => {
+      live = false;
+    };
+  }, [project.id, dir, src]);
+  // eslint-disable-next-line jsx-a11y/alt-text
+  return <img src={resolved} loading="lazy" {...rest} />;
+}
 
 export default function MarkdownView({ project }: { project: ProjectInfo }) {
   const docs = project.docs ?? [];
@@ -31,15 +73,7 @@ export default function MarkdownView({ project }: { project: ProjectInfo }) {
     return <div className="md-view md-empty dim">No markdown docs found in this project.</div>;
   }
 
-  // Resolve an image src: absolute (badges) pass through; project-relative paths
-  // resolve to a local asset URL relative to the active markdown file's folder.
-  const resolveSrc = (src?: string): string | undefined => {
-    if (!src || /^(https?:|data:|asset:|blob:)/i.test(src)) return src;
-    const dir = active.includes("/") ? active.slice(0, active.lastIndexOf("/")) : "";
-    const base = project.path.replace(/[\\/]+$/, "").replace(/\\/g, "/");
-    const rel = [dir, src.replace(/^\.\//, "")].filter(Boolean).join("/");
-    return convertFileSrc(`${base}/${rel}`);
-  };
+  const activeDir = active.includes("/") ? active.slice(0, active.lastIndexOf("/")) : "";
 
   return (
     <div className="md-view">
@@ -62,28 +96,28 @@ export default function MarkdownView({ project }: { project: ProjectInfo }) {
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
+            rehypePlugins={[rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA]]}
             components={{
               a: ({ href, children }) => (
                 <a
                   href={href}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (href) openUrl(href);
+                    // Only hand real web/mail links to the OS opener.
+                    if (href && /^(https?|mailto):/i.test(href)) openUrl(href);
                   }}
                 >
                   {children}
                 </a>
               ),
-              img: ({ src, alt, node: _node, ...rest }) => (
-                // eslint-disable-next-line jsx-a11y/alt-text
-                <img
-                  src={resolveSrc(typeof src === "string" ? src : undefined)}
-                  alt={alt}
-                  loading="lazy"
-                  {...rest}
-                />
-              ),
+              img: ({ src, node: _node, ...rest }) => {
+                const s = typeof src === "string" ? src : "";
+                if (ABSOLUTE.test(s)) {
+                  // eslint-disable-next-line jsx-a11y/alt-text
+                  return <img src={s} loading="lazy" {...rest} />;
+                }
+                return <DocImage project={project} dir={activeDir} src={s} {...rest} />;
+              },
             }}
           >
             {content}
