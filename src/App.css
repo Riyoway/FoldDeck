@@ -1495,15 +1495,10 @@ body.resizing-v {
 .dash-projects-head {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 12px 16px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--bg);
-  margin: 20px 0 0;
-  padding: 8px 0 10px;
-  border-bottom: 1px solid var(--border);
+  margin: 28px 0 14px;
 }
 
 .dash-h-inline {
@@ -1541,7 +1536,6 @@ body.resizing-v {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-left: auto;
   flex-wrap: wrap;
 }
 
@@ -1624,7 +1618,6 @@ body.resizing-v {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 10px;
-  margin-top: 12px;
 }
 
 .proj-card {
