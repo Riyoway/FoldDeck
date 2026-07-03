@@ -8,6 +8,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Search,
+  X,
 } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
@@ -31,6 +33,22 @@ interface Props {
 
 const MIN_W = 210;
 const MAX_W = 480;
+
+function RowInner({ project, running }: { project: ProjectInfo; running: boolean }) {
+  return (
+    <>
+      <span className={`st ${running ? "st-on" : ""}`} />
+      <ProjectIcon project={project} size={14} />
+      <span className="row-name">{project.name}</span>
+      {project.warnings.length > 0 && (
+        <span className="row-warn" title={`${project.warnings.length} warning(s)`}>
+          {project.warnings.length}
+        </span>
+      )}
+      <span className="row-fw">{project.framework ?? project.kind}</span>
+    </>
+  );
+}
 
 function ProjectRow({
   project,
@@ -79,15 +97,7 @@ function ProjectRow({
       >
         <GripVertical size={14} />
       </span>
-      <span className={`st ${running ? "st-on" : ""}`} />
-      <ProjectIcon project={project} size={14} />
-      <span className="row-name">{project.name}</span>
-      {project.warnings.length > 0 && (
-        <span className="row-warn" title={`${project.warnings.length} warning(s)`}>
-          {project.warnings.length}
-        </span>
-      )}
-      <span className="row-fw">{project.framework ?? project.kind}</span>
+      <RowInner project={project} running={running} />
     </Reorder.Item>
   );
 }
@@ -109,6 +119,7 @@ export default function Sidebar({
   onImportGit,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
+  const [query, setQuery] = useState("");
   const draggingRef = useRef(false);
   const orderRef = useRef(order);
   orderRef.current = order;
@@ -120,6 +131,18 @@ export default function Sidebar({
   }, [projects]);
 
   const byId = new Map(projects.map((p) => [p.id, p] as const));
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? order.filter((id) => {
+        const p = byId.get(id);
+        return (
+          !!p &&
+          (p.name.toLowerCase().includes(q) ||
+            (p.framework ?? p.kind).toLowerCase().includes(q))
+        );
+      })
+    : order;
 
   const handleDragStart = () => {
     draggingRef.current = true;
@@ -235,27 +258,68 @@ export default function Sidebar({
         </div>
       ) : (
         <div className="sidebar-list">
+          {projects.length > 6 && (
+            <div className="sidebar-search">
+              <Search size={14} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects"
+                spellCheck={false}
+              />
+              {query && (
+                <button className="sidebar-search-clear" onClick={() => setQuery("")} title="Clear">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          )}
           <div className="group-label">
-            Projects <span className="counter">{projects.length}</span>
+            Projects{" "}
+            <span className="counter">
+              {query ? `${filtered.length}/${projects.length}` : projects.length}
+            </span>
           </div>
-          <Reorder.Group axis="y" values={order} onReorder={setOrder} as="div">
-            {order.map((id) => {
-              const p = byId.get(id);
-              if (!p) return null;
-              return (
-                <ProjectRow
-                  key={id}
-                  project={p}
-                  running={!!statuses[id]?.running}
-                  selected={id === selectedId}
-                  onSelect={onSelectProject}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onContextMenu={onProjectContextMenu}
-                />
-              );
-            })}
-          </Reorder.Group>
+          {query ? (
+            filtered.length === 0 ? (
+              <div className="sidebar-empty">No matches.</div>
+            ) : (
+              filtered.map((id) => {
+                const p = byId.get(id);
+                if (!p) return null;
+                return (
+                  <div
+                    key={id}
+                    className={`row ${id === selectedId ? "row-selected" : ""}`}
+                    onClick={() => onSelectProject(id)}
+                    onContextMenu={(e) => onProjectContextMenu(e, p)}
+                  >
+                    <span className="grip-spacer" />
+                    <RowInner project={p} running={!!statuses[id]?.running} />
+                  </div>
+                );
+              })
+            )
+          ) : (
+            <Reorder.Group axis="y" values={order} onReorder={setOrder} as="div">
+              {order.map((id) => {
+                const p = byId.get(id);
+                if (!p) return null;
+                return (
+                  <ProjectRow
+                    key={id}
+                    project={p}
+                    running={!!statuses[id]?.running}
+                    selected={id === selectedId}
+                    onSelect={onSelectProject}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onContextMenu={onProjectContextMenu}
+                  />
+                );
+              })}
+            </Reorder.Group>
+          )}
         </div>
       )}
 

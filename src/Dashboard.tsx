@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Card, CardBody, Chip, Input, Tooltip } from "@heroui/react";
-import { AlertTriangle, Check, ExternalLink, Pencil, Play, Square, X } from "lucide-react";
+import { AlertTriangle, Check, ExternalLink, Pencil, Play, Search, Square, X } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -39,6 +39,8 @@ export default function Dashboard({
   const [ports, setPorts] = useState<PortInfo[]>([]);
   const [editingPort, setEditingPort] = useState<string | null>(null);
   const [portDraft, setPortDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "running" | "stopped" | "warnings">("all");
 
   const refreshPorts = useCallback(() => {
     invoke<PortInfo[]>("get_ports_overview").then(setPorts);
@@ -70,6 +72,22 @@ export default function Dashboard({
     ["Ports in use", ports.filter((p) => p.busy).length, ""],
   ];
 
+  const q = query.trim().toLowerCase();
+  const shown = projects.filter((p) => {
+    if (filter === "running" && !statuses[p.id]?.running) return false;
+    if (filter === "stopped" && statuses[p.id]?.running) return false;
+    if (filter === "warnings" && p.warnings.length === 0) return false;
+    if (q && !(p.name.toLowerCase().includes(q) || (p.framework ?? p.kind).toLowerCase().includes(q)))
+      return false;
+    return true;
+  });
+  const FILTERS: [typeof filter, string][] = [
+    ["all", "All"],
+    ["running", "Running"],
+    ["stopped", "Stopped"],
+    ["warnings", "Warnings"],
+  ];
+
   return (
     <div className="dashboard" onContextMenu={onBackgroundContextMenu}>
       <div className="dash-inner">
@@ -84,12 +102,45 @@ export default function Dashboard({
           ))}
         </div>
 
-        <h2 className="dash-h">Projects</h2>
+        <div className="dash-projects-head">
+          <h2 className="dash-h dash-h-inline">Projects</h2>
+          {projects.length > 6 && (
+            <div className="dash-toolbar">
+              <div className="dash-search">
+                <Search size={15} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search"
+                  spellCheck={false}
+                />
+                {query && (
+                  <button onClick={() => setQuery("")} title="Clear">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              <div className="dash-filters">
+                {FILTERS.map(([f, label]) => (
+                  <button
+                    key={f}
+                    className={`dash-filter ${filter === f ? "dash-filter-on" : ""}`}
+                    onClick={() => setFilter(f)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         {projects.length === 0 ? (
           <p className="dim dash-empty">Drop a folder anywhere to add your first project.</p>
+        ) : shown.length === 0 ? (
+          <p className="dim dash-empty">No projects match.</p>
         ) : (
           <div className="proj-grid">
-            {projects.map((p) => {
+            {shown.map((p) => {
               const st = statuses[p.id];
               const isRunning = !!st?.running;
               const url =

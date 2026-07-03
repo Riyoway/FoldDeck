@@ -346,6 +346,52 @@ body.resizing {
   border-color: var(--muted) !important;
 }
 
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 8px 2px;
+  padding: 0 9px;
+  height: 32px;
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  background: var(--bg-deep);
+  color: var(--muted);
+}
+
+.sidebar-search:focus-within {
+  border-color: var(--muted);
+}
+
+.sidebar-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.sidebar-search-clear {
+  display: flex;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.sidebar-search-clear:hover {
+  color: var(--text);
+}
+
+.grip-spacer {
+  width: 14px;
+  margin-left: -5px;
+  flex-shrink: 0;
+}
+
 .sidebar-empty {
   color: var(--muted);
   padding: 18px 14px;
@@ -1214,6 +1260,95 @@ body.resizing-v {
 
 .dash-empty {
   padding: 6px 0;
+}
+
+.dash-projects-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 30px 0 12px;
+}
+
+.dash-h-inline {
+  margin: 0;
+}
+
+.dash-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.dash-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  height: 34px;
+  width: 220px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--bg-deep);
+  color: var(--muted);
+}
+
+.dash-search:focus-within {
+  border-color: var(--muted);
+}
+
+.dash-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.dash-search button {
+  display: flex;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.dash-search button:hover {
+  color: var(--text);
+}
+
+.dash-filters {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+}
+
+.dash-filter {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.dash-filter:hover {
+  color: var(--text);
+}
+
+.dash-filter-on,
+.dash-filter-on:hover {
+  background: #21262d;
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* project cards */
