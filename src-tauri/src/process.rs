@@ -224,12 +224,12 @@ impl ProcessManager {
             return Err("Project is already running.".into());
         }
 
-        // Run through PowerShell (same as the Terminal tab) so PATH resolves the
-        // same way: tools the user's profile puts on PATH (e.g. java) are found,
-        // which a bare `cmd /C` misses. Set-Location keeps the project directory
-        // even if the profile changes it. raw_arg keeps the command's quotes.
+        // Run through PowerShell (same as the Terminal tab) and refresh PATH from
+        // the registry (Machine + User) so tools installed after the app started
+        // — e.g. java — are found even though the inherited PATH is stale. Then
+        // Set-Location keeps the project dir. raw_arg keeps the command's quotes.
         let ps_command = format!(
-            "Set-Location -LiteralPath '{}'; {}",
+            "$env:Path=($env:Path+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')); Set-Location -LiteralPath '{}'; {}",
             project.path.replace('\'', "''"),
             command
         );
