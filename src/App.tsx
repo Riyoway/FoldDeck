@@ -41,6 +41,7 @@ import Dashboard from "./Dashboard";
 import GitImportModal from "./GitImportModal";
 import LogView from "./LogView";
 import MarkdownView from "./MarkdownView";
+import MinecraftPanel from "./MinecraftPanel";
 import TerminalView from "./TerminalView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
@@ -89,7 +90,16 @@ export interface ProjectStatus {
   lastStoppedAt?: number | null;
 }
 
-type Tab = "logs" | "terminal" | "readme" | "bot" | "doctor" | "env" | "packages" | "info";
+type Tab =
+  | "logs"
+  | "terminal"
+  | "readme"
+  | "bot"
+  | "minecraft"
+  | "doctor"
+  | "env"
+  | "packages"
+  | "info";
 
 const MAX_LOG_LINES = 2000;
 
@@ -408,6 +418,7 @@ function App() {
         ["terminal", "Terminal", true],
         ["readme", "Readme", (selected.docs?.length ?? 0) > 0],
         ["bot", "Bot", selected.kind === "bot"],
+        ["minecraft", "Minecraft", selected.subtype === "minecraft"],
         ["doctor", "Doctor", true],
         ["env", "Env", selected.envFiles.length > 0],
         ["packages", "Packages", !!selected.packageManager],
@@ -743,6 +754,14 @@ function App() {
                 {activeTab === "readme" && <MarkdownView key={selected.id} project={selected} />}
                 {activeTab === "bot" && (
                   <BotPanel key={selected.id} project={selected} status={st} logs={logs[selected.id] ?? []} />
+                )}
+                {activeTab === "minecraft" && (
+                  <MinecraftPanel
+                    key={selected.id}
+                    project={selected}
+                    onStart={() => start(selected)}
+                    onChanged={refreshProjects}
+                  />
                 )}
                 {activeTab === "doctor" && <DoctorPanel key={selected.id} projectId={selected.id} />}
                 {activeTab === "env" && (

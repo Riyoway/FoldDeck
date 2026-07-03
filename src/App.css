@@ -1034,6 +1034,34 @@ body.resizing-v {
   margin-top: 14px;
 }
 
+.mc-setup {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  max-width: 620px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mc-setup p {
+  margin: 0 0 12px;
+}
+
+.mc-setup a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.mc-setup a:hover {
+  text-decoration: underline;
+}
+
+.mc-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ---- settings ---- */
 
 .settings {

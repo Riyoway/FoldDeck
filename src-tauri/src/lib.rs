@@ -636,6 +636,65 @@ fn terminal_close(id: String, state: tauri::State<AppState>) {
     state.terminals.close(&id);
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MinecraftInfo {
+    jar: Option<String>,
+    port: u16,
+    eula_exists: bool,
+    eula_accepted: bool,
+    properties_exists: bool,
+    needs_first_run: bool,
+}
+
+#[tauri::command]
+fn get_minecraft_info(id: String, state: tauri::State<AppState>) -> Result<MinecraftInfo, String> {
+    let dir_str = find_stored(&state, &id)?.path;
+    let dir = Path::new(&dir_str);
+    let jar = detect::minecraft_jar(dir);
+    let eula_exists = dir.join("eula.txt").is_file();
+    let properties_exists = dir.join("server.properties").is_file();
+    Ok(MinecraftInfo {
+        port: detect::minecraft_port(dir),
+        eula_accepted: detect::eula_accepted(dir),
+        // First run (java -jar) generates eula.txt + server.properties.
+        needs_first_run: jar.is_some() && !eula_exists && !properties_exists,
+        jar,
+        eula_exists,
+        properties_exists,
+    })
+}
+
+/// Writes eula=true to eula.txt (the user's explicit agreement), creating it if
+/// the server hasn't generated it yet.
+#[tauri::command]
+fn accept_minecraft_eula(id: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let dir_str = find_stored(&state, &id)?.path;
+    let path = Path::new(&dir_str).join("eula.txt");
+    let content = match std::fs::read_to_string(&path) {
+        Ok(existing) => {
+            let mut replaced = false;
+            let mut out: Vec<String> = existing
+                .lines()
+                .map(|l| {
+                    if l.trim().to_lowercase().starts_with("eula=") {
+                        replaced = true;
+                        "eula=true".to_string()
+                    } else {
+                        l.to_string()
+                    }
+                })
+                .collect();
+            if !replaced {
+                out.push("eula=true".to_string());
+            }
+            out.join("\n") + "\n"
+        }
+        Err(_) => "# Accepted via FoldDeck. https://aka.ms/MinecraftEULA\neula=true\n".to_string(),
+    };
+    std::fs::write(&path, content).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn read_markdown(
     id: String,
@@ -721,6 +780,8 @@ pub fn run() {
             read_env_file,
             save_env_file,
             create_env_from_example,
+            get_minecraft_info,
+            accept_minecraft_eula,
             read_markdown,
             get_default_clone_dir,
             git_import,

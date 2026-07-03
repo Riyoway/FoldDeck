@@ -277,17 +277,12 @@ fn detect_compose(dir: &Path, info: &mut ProjectInfo) -> bool {
     true
 }
 
-fn detect_minecraft(dir: &Path, info: &mut ProjectInfo) -> bool {
-    let has_marker = dir.join("server.properties").is_file() || dir.join("eula.txt").is_file();
-    if !has_marker {
-        return false;
-    }
-    info.kind = "game-server".into();
-    info.subtype = Some("minecraft".into());
-    info.runtime = Some("java".into());
-    info.framework = Some("Minecraft".into());
-    info.default_port = Some(25565);
+const MC_JAR_HINTS: &[&str] = &[
+    "server", "paper", "purpur", "spigot", "fabric", "forge", "minecraft", "bukkit", "vanilla",
+    "quilt", "neoforge",
+];
 
+pub fn minecraft_jar(dir: &Path) -> Option<String> {
     let jars: Vec<String> = std::fs::read_dir(dir)
         .into_iter()
         .flatten()
@@ -297,22 +292,58 @@ fn detect_minecraft(dir: &Path, info: &mut ProjectInfo) -> bool {
             n.to_lowercase().ends_with(".jar").then_some(n)
         })
         .collect();
-    let preferred = ["server", "paper", "purpur", "spigot", "fabric", "forge"];
-    let jar = jars
-        .iter()
-        .find(|j| preferred.iter().any(|p| j.to_lowercase().contains(p)))
-        .or_else(|| jars.first());
-    match jar {
+    jars.iter()
+        .find(|j| MC_JAR_HINTS.iter().any(|p| j.to_lowercase().contains(p)))
+        .or_else(|| jars.first())
+        .cloned()
+}
+
+/// Reads server-port from server.properties (default 25565).
+pub fn minecraft_port(dir: &Path) -> u16 {
+    std::fs::read_to_string(dir.join("server.properties"))
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find_map(|l| l.trim().strip_prefix("server-port="))
+                .and_then(|v| v.trim().parse::<u16>().ok())
+        })
+        .unwrap_or(25565)
+}
+
+pub fn eula_accepted(dir: &Path) -> bool {
+    std::fs::read_to_string(dir.join("eula.txt"))
+        .map(|s| {
+            s.lines()
+                .any(|l| l.trim().to_lowercase().replace(' ', "") == "eula=true")
+        })
+        .unwrap_or(false)
+}
+
+fn detect_minecraft(dir: &Path, info: &mut ProjectInfo) -> bool {
+    let jar = minecraft_jar(dir);
+    let has_config = dir.join("server.properties").is_file() || dir.join("eula.txt").is_file();
+    // A minecraft-hinted jar counts even before the first run generates config.
+    let jar_is_mc = jar
+        .as_deref()
+        .map(|j| MC_JAR_HINTS.iter().any(|p| j.to_lowercase().contains(p)))
+        .unwrap_or(false);
+    if !has_config && !jar_is_mc {
+        return false;
+    }
+    info.kind = "game-server".into();
+    info.subtype = Some("minecraft".into());
+    info.runtime = Some("java".into());
+    info.framework = Some("Minecraft".into());
+    info.default_port = Some(minecraft_port(dir));
+
+    match &jar {
         Some(j) => info.start_command = Some(format!("java -Xmx2G -jar \"{}\" nogui", j)),
         None => info.warnings.push("No server .jar found.".into()),
     }
 
-    let eula_ok = std::fs::read_to_string(dir.join("eula.txt"))
-        .map(|s| s.to_lowercase().contains("eula=true"))
-        .unwrap_or(false);
-    if !eula_ok {
+    if jar.is_some() && !eula_accepted(dir) {
         info.warnings
-            .push("Minecraft EULA is not accepted (eula.txt).".into());
+            .push("Minecraft EULA is not accepted — accept it in the Minecraft tab.".into());
     }
     true
 }
