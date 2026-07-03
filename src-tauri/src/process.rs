@@ -130,6 +130,29 @@ fn mask_secrets(line: &str, secrets: &[String]) -> String {
 }
 
 /// First http(s)://localhost|127.0.0.1[:port] substring in a log line.
+/// Removes ANSI CSI escape sequences (ESC [ ... letter) so URL/request
+/// detection isn't broken by coloured output.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&nc) = chars.peek() {
+                    chars.next();
+                    if nc.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 fn extract_local_url(line: &str) -> Option<String> {
     for host in ["http://localhost", "https://localhost", "http://127.0.0.1"] {
         if let Some(pos) = line.find(host) {
@@ -212,11 +235,14 @@ impl ProcessManager {
                 let reader = BufReader::new(pipe);
                 for line in reader.lines().map_while(Result::ok) {
                     let line = mask_secrets(&line, &secrets);
-                    if is_request_line(&line) {
+                    // Detection runs on an ANSI-free copy (Vite etc. colour the
+                    // URL/port), while the coloured line is what gets displayed.
+                    let plain = strip_ansi(&line);
+                    if is_request_line(&plain) {
                         record_request(&requests);
                     }
                     if url_slot.lock().unwrap().is_none() {
-                        if let Some(url) = extract_local_url(&line) {
+                        if let Some(url) = extract_local_url(&plain) {
                             *url_slot.lock().unwrap() = Some(url.clone());
                             let _ = app.emit("project-url", LogEvent { id: id.clone(), line: url });
                         }
@@ -498,5 +524,11 @@ mod tests {
             Some("http://127.0.0.1:8000")
         );
         assert_eq!(extract_local_url("no url here"), None);
+        // Vite colours the port with ANSI codes between the colon and digits.
+        assert_eq!(
+            extract_local_url(&strip_ansi("Local:   \x1b[36mhttp://localhost:\x1b[1m5173\x1b[22m/\x1b[39m"))
+                .as_deref(),
+            Some("http://localhost:5173")
+        );
     }
 }
