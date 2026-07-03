@@ -11,6 +11,8 @@ type Settings = {
   terminalShell: string;
   terminalFontSize: number;
   terminalFontFamily: string;
+  /** Clone destination for Git imports; empty = Documents/GitHub. */
+  gitImportDir: string;
 };
 
 const DEFAULTS: Settings = {
@@ -24,6 +26,7 @@ const DEFAULTS: Settings = {
   terminalShell: "powershell.exe",
   terminalFontSize: 13,
   terminalFontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
+  gitImportDir: "",
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */

@@ -480,6 +480,112 @@ fn create_env_from_example(id: String, state: tauri::State<AppState>) -> Result<
 }
 
 #[tauri::command]
+fn get_default_clone_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let docs = app.path().document_dir().map_err(|e| e.to_string())?;
+    Ok(docs.join("GitHub").to_string_lossy().to_string())
+}
+
+fn repo_name_from_url(url: &str) -> Option<String> {
+    let trimmed = url.trim().trim_end_matches('/');
+    let last = trimmed.rsplit(['/', ':']).next()?;
+    let name = last.trim_end_matches(".git").trim();
+    (!name.is_empty() && !name.contains(['\\', '?', '*', '<', '>', '|', '"'])).then(|| name.to_string())
+}
+
+/// Clones a repository into the configured directory and returns the new
+/// project path. Progress lines stream via "git-import-log" events.
+#[tauri::command]
+fn git_import(
+    url: String,
+    dest_dir: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use tauri::Emitter;
+
+    let url = url.trim().to_string();
+    if url.is_empty() {
+        return Err("Repository URL is empty.".into());
+    }
+    let name = repo_name_from_url(&url).ok_or("Could not determine a repository name from that URL.")?;
+    let base = match dest_dir.filter(|d| !d.trim().is_empty()) {
+        Some(d) => PathBuf::from(d),
+        None => app
+            .path()
+            .document_dir()
+            .map_err(|e| e.to_string())?
+            .join("GitHub"),
+    };
+    std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let target = base.join(&name);
+    if target.exists() {
+        return Err(format!("{} already exists.", target.display()));
+    }
+
+    let mut cmd = Command::new("git");
+    cmd.args(["clone", "--progress", &url])
+        .arg(&target)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to run git (is it installed?): {}", e))?;
+
+    // git writes progress to stderr using \r updates; split on \r and \n.
+    let mut readers: Vec<Box<dyn Read + Send>> = Vec::new();
+    if let Some(out) = child.stdout.take() {
+        readers.push(Box::new(out));
+    }
+    if let Some(err) = child.stderr.take() {
+        readers.push(Box::new(err));
+    }
+    let mut threads = Vec::new();
+    for mut reader in readers {
+        let app = app.clone();
+        threads.push(std::thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            let mut line = String::new();
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        for &b in &buf[..n] {
+                            if b == b'\n' || b == b'\r' {
+                                if !line.trim().is_empty() {
+                                    let _ = app.emit(
+                                        "git-import-log",
+                                        serde_json::json!({ "line": line.clone() }),
+                                    );
+                                }
+                                line.clear();
+                            } else {
+                                line.push(b as char);
+                            }
+                        }
+                    }
+                }
+            }
+        }));
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    for t in threads {
+        let _ = t.join();
+    }
+    if !status.success() {
+        let _ = std::fs::remove_dir_all(&target);
+        return Err("git clone failed — check the URL and the log.".into());
+    }
+    Ok(target.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn terminal_open(
     id: String,
     shell: String,
@@ -593,6 +699,8 @@ pub fn run() {
             save_env_file,
             create_env_from_example,
             read_markdown,
+            get_default_clone_dir,
+            git_import,
             terminal_open,
             terminal_input,
             terminal_resize,
@@ -608,4 +716,18 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_repo_names_from_urls() {
+        assert_eq!(repo_name_from_url("https://github.com/user/repo.git").as_deref(), Some("repo"));
+        assert_eq!(repo_name_from_url("https://github.com/user/repo/").as_deref(), Some("repo"));
+        assert_eq!(repo_name_from_url("git@github.com:user/my-app.git").as_deref(), Some("my-app"));
+        assert_eq!(repo_name_from_url(""), None);
+        assert_eq!(repo_name_from_url("https://github.com/user/bad|name"), None);
+    }
 }

@@ -21,6 +21,7 @@ import {
   Copy,
   ExternalLink,
   FolderOpen,
+  GitBranch,
   Minus,
   PanelLeftOpen,
   Pencil,
@@ -36,6 +37,7 @@ import {
 import BotPanel from "./BotPanel";
 import ContextMenu, { type MenuItem, type MenuState } from "./ContextMenu";
 import Dashboard from "./Dashboard";
+import GitImportModal from "./GitImportModal";
 import LogView from "./LogView";
 import MarkdownView from "./MarkdownView";
 import TerminalView from "./TerminalView";
@@ -110,6 +112,7 @@ function App() {
   const [detailHeaderHeight, setDetailHeaderHeight] = useState(getSetting("detailHeaderHeight"));
   const detailHeadRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [gitImportOpen, setGitImportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [, setTick] = useState(0);
@@ -320,7 +323,21 @@ function App() {
 
   const projectContextMenu = (e: React.MouseEvent, p: ProjectInfo) => openMenu(e, projectMenuItems(p));
   const generalContextMenu = (e: React.MouseEvent) =>
-    openMenu(e, [{ key: "add", label: "Add folder", icon: <Plus size={14} />, onClick: addFolder }]);
+    openMenu(e, [
+      { key: "add", label: "Add folder", icon: <Plus size={14} />, onClick: addFolder },
+      { key: "git", label: "Import from Git", icon: <GitBranch size={14} />, onClick: () => setGitImportOpen(true) },
+    ]);
+
+  const handleGitImported = async (path: string) => {
+    setGitImportOpen(false);
+    try {
+      const info = await invoke<ProjectInfo>("add_project", { path });
+      await refreshAll();
+      setSelectedId(info.id);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
   const logsContextMenu = (e: React.MouseEvent, id: string) =>
     openMenu(e, [
       { key: "copy", label: "Copy all logs", icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText((logs[id] ?? []).join("\n")) },
@@ -443,6 +460,7 @@ function App() {
             onProjectContextMenu={projectContextMenu}
             onBackgroundContextMenu={generalContextMenu}
             onCollapse={() => setSidebar(true)}
+            onImportGit={() => setGitImportOpen(true)}
           />
         )}
 
@@ -806,6 +824,12 @@ function App() {
           )}
         </ModalContent>
       </Modal>
+
+      <GitImportModal
+        open={gitImportOpen}
+        onClose={() => setGitImportOpen(false)}
+        onImported={handleGitImported}
+      />
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
 

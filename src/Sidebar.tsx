@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { Button } from "@heroui/react";
-import { GripVertical, LayoutDashboard, PanelLeftClose, Plus } from "lucide-react";
+import { GitBranch, GripVertical, LayoutDashboard, PanelLeftClose, Plus } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -18,6 +18,7 @@ interface Props {
   onProjectContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
   onBackgroundContextMenu: (e: React.MouseEvent) => void;
   onCollapse: () => void;
+  onImportGit: () => void;
 }
 
 const MIN_W = 210;
@@ -96,6 +97,7 @@ export default function Sidebar({
   onProjectContextMenu,
   onBackgroundContextMenu,
   onCollapse,
+  onImportGit,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
   const draggingRef = useRef(false);
@@ -148,6 +150,16 @@ export default function Sidebar({
           onPress={onAddFolder}
         >
           Add folder
+        </Button>
+        <Button
+          isIconOnly
+          size="md"
+          variant="light"
+          aria-label="Import from Git"
+          title="Import from Git"
+          onPress={onImportGit}
+        >
+          <GitBranch size={16} />
         </Button>
         <Button
           isIconOnly

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Input, Select, SelectItem, Switch, Tab, Tabs } from "@heroui/react";
 import { FolderOpen, RotateCcw } from "lucide-react";
@@ -11,6 +12,7 @@ type Section =
   | "safety"
   | "logs"
   | "terminal"
+  | "git"
   | "servers"
   | "recipes"
   | "storage"
@@ -21,6 +23,7 @@ const SECTIONS: [Section, string][] = [
   ["safety", "Safety"],
   ["logs", "Logs"],
   ["terminal", "Terminal"],
+  ["git", "Git"],
   ["servers", "Servers"],
   ["recipes", "Recipes"],
   ["storage", "Storage"],
@@ -101,6 +104,8 @@ export default function SettingsPage() {
   const [termShell, setTermShell] = useState(getSetting("terminalShell"));
   const [termSize, setTermSize] = useState(getSetting("terminalFontSize"));
   const [termFont, setTermFont] = useState(getSetting("terminalFontFamily"));
+  const [gitDir, setGitDir] = useState(getSetting("gitImportDir"));
+  const [defaultGitDir, setDefaultGitDir] = useState("");
   const [sizeCustom, setSizeCustom] = useState(!TERM_FONT_SIZES.includes(getSetting("terminalFontSize")));
   const [fontCustom, setFontCustom] = useState(
     !FONT_PRESETS.some(([, v]) => v === getSetting("terminalFontFamily")),
@@ -118,6 +123,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     invoke<{ appData: string; recipes: string }>("get_app_paths").then(setPaths);
+    invoke<string>("get_default_clone_dir").then(setDefaultGitDir).catch(() => {});
     getVersion().then(setVersion);
   }, []);
 
@@ -312,6 +318,62 @@ export default function SettingsPage() {
                     aria-label="Custom font family"
                   />
                 )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {section === "git" && (
+          <>
+            <h2>Git</h2>
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <div className="settings-label">Clone directory</div>
+                <div className="settings-desc">
+                  Where "Import from Git" clones repositories. Leave empty for the default.
+                </div>
+                <div className="settings-path">Default: {defaultGitDir || "Documents/GitHub"}</div>
+              </div>
+              <div className="settings-control-col">
+                <Input
+                  size="md"
+                  variant="bordered"
+                  className="settings-input"
+                  value={gitDir}
+                  placeholder={defaultGitDir || "Documents/GitHub"}
+                  onValueChange={(v) => {
+                    setGitDir(v);
+                    setSetting("gitImportDir", v.trim());
+                  }}
+                  aria-label="Clone directory"
+                />
+                <div className="settings-btns">
+                  <Button
+                    size="md"
+                    variant="flat"
+                    startContent={<FolderOpen size={14} />}
+                    onPress={async () => {
+                      const picked = await open({ directory: true, multiple: false });
+                      if (typeof picked === "string") {
+                        setGitDir(picked);
+                        setSetting("gitImportDir", picked);
+                      }
+                    }}
+                  >
+                    Browse
+                  </Button>
+                  <Button
+                    size="md"
+                    variant="flat"
+                    isDisabled={!gitDir}
+                    onPress={() => {
+                      setGitDir("");
+                      setSetting("gitImportDir", "");
+                    }}
+                  >
+                    Reset
+                  </Button>
+                </div>
               </div>
             </div>
           </>
