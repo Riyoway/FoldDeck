@@ -420,8 +420,12 @@ fn reinstall_dependencies(
     };
     let mut cmd = format!("{} install", pm);
     if Path::new(&info.path).join("node_modules").exists() {
-        // Lockfiles are kept; only node_modules is removed.
-        cmd = format!("rmdir /s /q node_modules && {}", cmd);
+        // Lockfiles are kept; only node_modules is removed. PowerShell syntax
+        // since commands run through PowerShell.
+        cmd = format!(
+            "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue node_modules; {}",
+            cmd
+        );
     }
     state.manager.start(&app, &info, &cmd, &[])
 }

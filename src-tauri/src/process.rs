@@ -224,18 +224,24 @@ impl ProcessManager {
             return Err("Project is already running.".into());
         }
 
-        let mut cmd = Command::new("cmd");
+        // Run through PowerShell (same as the Terminal tab) so PATH resolves the
+        // same way: tools the user's profile puts on PATH (e.g. java) are found,
+        // which a bare `cmd /C` misses. Set-Location keeps the project directory
+        // even if the profile changes it. raw_arg keeps the command's quotes.
+        let ps_command = format!(
+            "Set-Location -LiteralPath '{}'; {}",
+            project.path.replace('\'', "''"),
+            command
+        );
+        let mut cmd = Command::new("powershell.exe");
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
-            // raw_arg keeps the command's quotes intact. Command::args escapes
-            // quotes as \" which cmd.exe doesn't understand, so `-jar "x.jar"`
-            // reached java as \"x.jar\" and failed ("Unable to access jarfile").
-            cmd.raw_arg("/C").raw_arg(&command);
+            cmd.raw_arg("-NoLogo").raw_arg("-Command").raw_arg(&ps_command);
             cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
         #[cfg(not(windows))]
-        cmd.arg("/C").arg(&command);
+        cmd.arg("-Command").arg(&ps_command);
         cmd.current_dir(&project.path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -465,9 +471,9 @@ impl ProcessManager {
             }
         }
         if let Some((cmd, dir)) = on_stop {
-            let mut stop_cmd = Command::new("cmd");
+            let mut stop_cmd = Command::new("powershell.exe");
             stop_cmd
-                .args(["/C", &cmd])
+                .args(["-NoLogo", "-Command", &cmd])
                 .current_dir(dir)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
