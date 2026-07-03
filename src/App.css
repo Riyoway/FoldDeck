@@ -198,7 +198,7 @@ button {
   border-bottom: 1px solid rgba(248, 81, 73, 0.4);
   color: #ffa198;
   font-size: 12.5px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .error-bar .btn {
@@ -448,7 +448,7 @@ body.resizing {
   padding: 0 10px;
   border-radius: 6px;
   cursor: pointer;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 13px;
   transition: background 0.1s;
 }
@@ -695,7 +695,7 @@ body.resizing-v {
   font-size: 12.5px;
   color: var(--amber);
   line-height: 1.7;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .detail-actions {
@@ -905,7 +905,7 @@ body.resizing-v {
   color: var(--amber);
   font-size: 12.5px;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .env-rows {
@@ -965,7 +965,7 @@ body.resizing-v {
 .doctor {
   padding: 16px 20px;
   overflow-y: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 12.5px;
 }
 
@@ -2365,7 +2365,7 @@ body.resizing-v {
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   color: var(--accent);
   pointer-events: none;
   z-index: 100;
