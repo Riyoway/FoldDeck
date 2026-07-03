@@ -485,6 +485,17 @@ fn get_default_clone_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(docs.join("GitHub").to_string_lossy().to_string())
 }
 
+/// A "-..." URL would be parsed by git as a flag (e.g. --upload-pack=<cmd>
+/// executes commands). Allowlist schemes and reject flag-like values.
+fn validate_repo_url(url: &str) -> Result<(), String> {
+    let allowed = ["https://", "http://", "ssh://", "git://"];
+    let scp_like = url.starts_with("git@");
+    if url.starts_with('-') || (!scp_like && !allowed.iter().any(|s| url.starts_with(s))) {
+        return Err("Unsupported repository URL. Use https://, ssh://, git:// or git@host:path.".into());
+    }
+    Ok(())
+}
+
 fn repo_name_from_url(url: &str) -> Option<String> {
     let trimmed = url.trim().trim_end_matches('/');
     let last = trimmed.rsplit(['/', ':']).next()?;
@@ -508,6 +519,7 @@ fn git_import(
     if url.is_empty() {
         return Err("Repository URL is empty.".into());
     }
+    validate_repo_url(&url)?;
     let name = repo_name_from_url(&url).ok_or("Could not determine a repository name from that URL.")?;
     let base = match dest_dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => PathBuf::from(d),
@@ -524,7 +536,7 @@ fn git_import(
     }
 
     let mut cmd = Command::new("git");
-    cmd.args(["clone", "--progress", &url])
+    cmd.args(["clone", "--progress", "--", &url])
         .arg(&target)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -729,5 +741,16 @@ mod tests {
         assert_eq!(repo_name_from_url("git@github.com:user/my-app.git").as_deref(), Some("my-app"));
         assert_eq!(repo_name_from_url(""), None);
         assert_eq!(repo_name_from_url("https://github.com/user/bad|name"), None);
+    }
+
+    #[test]
+    fn rejects_flag_like_and_unknown_scheme_urls() {
+        assert!(validate_repo_url("--upload-pack=calc.exe").is_err());
+        assert!(validate_repo_url("-oProxyCommand=calc").is_err());
+        assert!(validate_repo_url("file:///C:/x").is_err());
+        assert!(validate_repo_url("C:/local/repo").is_err());
+        assert!(validate_repo_url("https://github.com/user/repo.git").is_ok());
+        assert!(validate_repo_url("git@github.com:user/repo.git").is_ok());
+        assert!(validate_repo_url("ssh://git@host/repo.git").is_ok());
     }
 }
