@@ -336,7 +336,13 @@ body.resizing {
   border: 1.5px solid var(--bg);
 }
 
-/* Keep HeroUI bordered inputs calm — no bright hover/focus outline. */
+/* Keep HeroUI bordered inputs calm: a single subtle border — no focus ring
+   (the outer box-shadow) and no leftover outline on the inner input, which
+   together looked like a double frame. */
+[data-slot="input-wrapper"] {
+  box-shadow: none !important;
+}
+
 [data-slot="input-wrapper"][data-hover="true"] {
   border-color: var(--border-2) !important;
 }
@@ -344,6 +350,12 @@ body.resizing {
 [data-slot="input-wrapper"][data-focus="true"],
 [data-slot="input-wrapper"][data-focus-visible="true"] {
   border-color: var(--muted) !important;
+}
+
+[data-slot="input"] {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .sidebar-search {
@@ -595,7 +607,7 @@ body.resizing-v {
 }
 
 .detail-name {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
 }
