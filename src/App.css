@@ -324,6 +324,13 @@ body.resizing {
   background: var(--panel-hover);
 }
 
+/* Reorder rows take focus while dragging; selection is shown by row-selected,
+   so drop the leftover browser focus outline. */
+.row:focus,
+.row:focus-visible {
+  outline: none;
+}
+
 .row-selected,
 .row-selected:hover {
   background: var(--accent-soft);
