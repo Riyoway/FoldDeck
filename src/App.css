@@ -2053,31 +2053,33 @@ body.resizing-v {
   width: 100%;
 }
 
-/* The terminal only scrolls vertically. */
 .term-host .xterm-viewport {
   overflow-x: hidden !important;
 }
 
-/* Theme every scrollbar inside the terminal (both axes + corner) so the
-   default blue horizontal bar and white corner never show. */
-.term-host ::-webkit-scrollbar {
-  width: 10px;
-  height: 0; /* no horizontal scrollbar */
+/* xterm v6 draws its OWN scrollbar (a VS Code-style DOM element), not a native
+   ::-webkit-scrollbar — that blue bar was its slider. Hide the scrollbar and
+   the inset edge shadows entirely (wheel/keyboard scroll still works). */
+.term-host .xterm-scrollable-element > .scrollbar,
+.term-host .xterm-scrollable-element > .shadow {
+  display: none !important;
 }
 
-.term-host ::-webkit-scrollbar-track,
-.term-host ::-webkit-scrollbar-corner {
-  background: transparent;
+/* Also kill any native scrollbar on the viewport, both axes + corner. */
+.term-host::-webkit-scrollbar,
+.term-host *::-webkit-scrollbar,
+.term-host::-webkit-scrollbar-corner,
+.term-host *::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
-.term-host ::-webkit-scrollbar-thumb {
-  background: #2a2a30;
-  border-radius: 5px;
-  border: 2px solid #050506;
-}
-
-.term-host ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a42;
+.term-host,
+.term-host * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 /* ---- markdown ---- */
