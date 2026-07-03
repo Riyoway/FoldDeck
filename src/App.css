@@ -512,6 +512,11 @@ body.dragging-row * {
   flex-shrink: 0;
 }
 
+.st-warn {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
 .st-on {
   background: var(--green);
   border-color: var(--green);
@@ -1642,7 +1647,8 @@ body.resizing-v {
 }
 
 .proj-card:focus-visible,
-.ports-table tbody tr:focus-visible {
+.ports-table tbody tr:focus-visible,
+.mon-table tbody tr:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -2363,8 +2369,19 @@ body.resizing-v {
 
 .mon-metric-val {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  min-width: 7ch;
   font-size: 20px;
   font-weight: 600;
+}
+
+.mon-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .mon-charts {
@@ -2380,10 +2397,21 @@ body.resizing-v {
 }
 
 .mon-chart-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
+}
+
+.mon-chart-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .mon-spark {
@@ -2392,7 +2420,19 @@ body.resizing-v {
 
 .mon-empty {
   margin: auto;
-  padding: 40px;
+  padding: 28px 48px;
+  border: 1px dashed var(--border-2);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.mon-empty-hint {
+  font-size: 11.5px;
 }
 
 .mon-table-wrap {
@@ -2449,7 +2489,20 @@ body.resizing-v {
 .mon-num {
   text-align: right;
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.mon-sort-dir {
+  margin-left: 3px;
+  font-size: 9px;
+  color: var(--text);
+}
+
+.mon-col-name .st {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 7px;
 }
 
 .mon-col-icon {
@@ -2467,12 +2520,25 @@ body.resizing-v {
   font-size: 11px;
 }
 
-.mon-cpu,
-.mon-mem {
-  display: flex;
+/* Keep tds real table-cells; the inner span does the flex layout. */
+.mon-cell {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
+  vertical-align: middle;
+}
+
+/* Pin value widths so live numbers don't shove the sparkline/bar around. */
+.mon-cpu .mon-cell > span:first-child {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+}
+
+.mon-mem .mon-cell > span:first-child {
+  display: inline-block;
+  min-width: 7ch;
+  text-align: right;
 }
 
 .mon-membar {

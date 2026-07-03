@@ -17,9 +17,22 @@ interface ProcStat {
 type SortKey = "name" | "cpu" | "mem" | "uptime";
 
 /** Tiny monochrome sparkline / area chart (same style as RequestChart). */
-function Spark({ series, w, h, fill }: { series: number[]; w: number; h: number; fill?: boolean }) {
+function Spark({
+  series,
+  w,
+  h,
+  fill,
+  floor = 1,
+}: {
+  series: number[];
+  w: number;
+  h: number;
+  fill?: boolean;
+  /** Minimum y-scale so idle noise doesn't render as full-height mountains. */
+  floor?: number;
+}) {
   if (series.length < 2) return <svg width={w} height={h} className="mon-spark" />;
-  const max = Math.max(...series, 1);
+  const max = Math.max(...series, floor);
   const step = w / (series.length - 1);
   const y = (v: number) => h - 2 - (v / max) * (h - 6);
   const line = series.map((v, i) => `${i ? "L" : "M"}${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
@@ -56,6 +69,15 @@ export default function MonitorView({
   const histRef = useRef<Record<string, number[]>>({});
   const aggCpuRef = useRef<number[]>([]);
   const aggMemRef = useRef<number[]>([]);
+  /** Memory-bar scale ratchets to the session peak so bars don't rescale each tick. */
+  const memScaleRef = useRef(1);
+
+  // 1s render tick so uptime counts smoothly between the 2s stat events.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const ingest = (s: ProcStat[]) => {
@@ -111,6 +133,8 @@ export default function MonitorView({
   const totalCpu = stats.reduce((n, s) => n + (s.cpu ?? 0), 0);
   const totalMem = stats.reduce((n, s) => n + (s.memMb ?? 0), 0);
   const maxMem = Math.max(1, ...stats.map((s) => s.memMb ?? 0));
+  memScaleRef.current = Math.max(memScaleRef.current, maxMem);
+  const memLabel = totalMem >= 1024 ? `${(totalMem / 1024).toFixed(2)} GB` : `${totalMem.toFixed(0)} MB`;
 
   const sortHead = (key: SortKey, label: string, cls = "") => (
     <th
@@ -118,6 +142,7 @@ export default function MonitorView({
       onClick={() => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: -1 }))}
     >
       {label}
+      {sort.key === key && <span className="mon-sort-dir">{sort.dir === -1 ? "▾" : "▴"}</span>}
     </th>
   );
 
@@ -135,20 +160,28 @@ export default function MonitorView({
           </span>
           <span className="mon-metric">
             <span className="mon-metric-label">Memory</span>
-            <span className="mon-metric-val">
-              {totalMem >= 1024 ? `${(totalMem / 1024).toFixed(2)} GB` : `${totalMem.toFixed(0)} MB`}
-            </span>
+            <span className="mon-metric-val">{memLabel}</span>
           </span>
         </div>
         {running.length > 0 && (
+          <span className="mon-live">
+            <span className="st st-on" />
+            live · 2s
+          </span>
+        )}
+        {aggCpuRef.current.length > 1 && (
           <div className="mon-charts">
             <div className="mon-chart">
-              <span className="mon-chart-label">CPU %</span>
-              <Spark series={aggCpuRef.current} w={200} h={38} fill />
+              <span className="mon-chart-label">
+                CPU %<span className="mon-chart-val">{totalCpu.toFixed(0)}%</span>
+              </span>
+              <Spark series={aggCpuRef.current} w={200} h={38} fill floor={50} />
             </div>
             <div className="mon-chart">
-              <span className="mon-chart-label">Memory</span>
-              <Spark series={aggMemRef.current} w={200} h={38} fill />
+              <span className="mon-chart-label">
+                Memory<span className="mon-chart-val">{memLabel}</span>
+              </span>
+              <Spark series={aggMemRef.current} w={200} h={38} fill floor={512} />
             </div>
           </div>
         )}
@@ -158,7 +191,12 @@ export default function MonitorView({
       </div>
 
       {running.length === 0 ? (
-        <div className="mon-empty dim">No projects running. Start one to see live resource usage.</div>
+        <div className="mon-empty">
+          <span className="dim">no processes running</span>
+          <span className="mon-empty-hint dim">
+            start a project from the dashboard to see live CPU / memory
+          </span>
+        </div>
       ) : (
         <div className="mon-table-wrap">
           <table className="mon-table">
@@ -180,12 +218,32 @@ export default function MonitorView({
                 const ps = statMap[p.id];
                 const url = st?.url ?? null;
                 const port = portOf(st, p);
+                const warn =
+                  (st?.crashCount ?? 0) > 0 || (st?.lastExitCode != null && st.lastExitCode !== 0);
                 return (
-                  <tr key={p.id} onClick={() => onSelect(p.id)}>
+                  <tr
+                    key={p.id}
+                    tabIndex={0}
+                    onClick={() => onSelect(p.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelect(p.id);
+                      }
+                    }}
+                  >
                     <td className="mon-col-icon">
                       <ProjectIcon project={p} size={15} />
                     </td>
                     <td className="mon-col-name">
+                      <span
+                        className={`st ${warn ? "st-warn" : "st-on"}`}
+                        title={
+                          warn
+                            ? `crashed ${st?.crashCount ?? 0}× · last exit ${st?.lastExitCode ?? 0}`
+                            : "running"
+                        }
+                      />
                       <span className="mon-name">{p.name}</span>
                       <span className="mon-path dim" title={p.path}>
                         {p.path.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}
@@ -193,16 +251,33 @@ export default function MonitorView({
                     </td>
                     <td className="mon-num dim">{ps?.pid ? ps.pid : "—"}</td>
                     <td className="mon-num mon-cpu">
-                      <span>{ps?.cpu != null ? `${ps.cpu.toFixed(0)}%` : "—"}</span>
-                      {histRef.current[p.id] && <Spark series={histRef.current[p.id]} w={54} h={16} />}
+                      <span className="mon-cell">
+                        {ps === undefined ? (
+                          <span className="dim">…</span>
+                        ) : (
+                          <span>{ps.cpu != null ? `${ps.cpu.toFixed(0)}%` : "—"}</span>
+                        )}
+                        {histRef.current[p.id] && (
+                          <Spark series={histRef.current[p.id]} w={54} h={16} />
+                        )}
+                      </span>
                     </td>
                     <td className="mon-num mon-mem">
-                      <span>{ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "—"}</span>
-                      {ps?.memMb != null && (
-                        <span className="mon-membar">
-                          <span style={{ width: `${Math.min(100, (ps.memMb / maxMem) * 100)}%` }} />
-                        </span>
-                      )}
+                      <span className="mon-cell">
+                        <span>{ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "—"}</span>
+                        {ps?.memMb != null && (
+                          <span
+                            className="mon-membar"
+                            title={`scale: ${memScaleRef.current.toFixed(0)} MB session peak`}
+                          >
+                            <span
+                              style={{
+                                width: `${Math.min(100, (ps.memMb / memScaleRef.current) * 100)}%`,
+                              }}
+                            />
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="mon-num dim">{formatUptime(st?.startedAt) || "—"}</td>
                     <td className="mon-num dim">{port ?? "—"}</td>
