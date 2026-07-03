@@ -55,6 +55,7 @@ function ProjectRow({
   project,
   running,
   selected,
+  dragging,
   onSelect,
   onDragStart,
   onDragEnd,
@@ -63,6 +64,7 @@ function ProjectRow({
   project: ProjectInfo;
   running: boolean;
   selected: boolean;
+  dragging: boolean;
   onSelect: (id: string) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -75,17 +77,14 @@ function ProjectRow({
       as="div"
       dragListener={false}
       dragControls={controls}
-      className={`row ${selected ? "row-selected" : ""}`}
+      className={`row ${selected ? "row-selected" : ""} ${dragging ? "row-dragging" : ""}`}
       onTap={() => onSelect(project.id)}
       onContextMenu={(e: React.MouseEvent) => onContextMenu(e, project)}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      whileDrag={{
-        scale: 1.03,
-        backgroundColor: "#2b2b31",
-        boxShadow: "0 8px 22px rgba(0,0,0,0.55)",
-        cursor: "grabbing",
-      }}
+      // Only animate transform — framer leaves inline background/box-shadow
+      // behind on drop, so those live in .row-dragging (a real class) instead.
+      whileDrag={{ scale: 1.03 }}
     >
       <span
         className="grip"
@@ -121,6 +120,7 @@ export default function Sidebar({
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
   const [query, setQuery] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
   const draggingRef = useRef(false);
   const orderRef = useRef(order);
   orderRef.current = order;
@@ -164,12 +164,14 @@ export default function Sidebar({
     );
   };
 
-  const handleDragStart = () => {
+  const handleDragStart = (id: string) => {
     draggingRef.current = true;
+    setDragId(id);
     document.body.classList.add("dragging-row");
   };
   const handleDragEnd = () => {
     draggingRef.current = false;
+    setDragId(null);
     document.body.classList.remove("dragging-row");
     onReorder(orderRef.current);
   };
@@ -333,8 +335,9 @@ export default function Sidebar({
                       project={p}
                       running={!!statuses[id]?.running}
                       selected={id === selectedId}
+                      dragging={dragId === id}
                       onSelect={onSelectProject}
-                      onDragStart={handleDragStart}
+                      onDragStart={() => handleDragStart(id)}
                       onDragEnd={handleDragEnd}
                       onContextMenu={onProjectContextMenu}
                     />
