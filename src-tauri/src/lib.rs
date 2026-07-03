@@ -1,6 +1,7 @@
 mod audit;
 mod detect;
 mod env_file;
+mod monitor;
 mod process;
 mod recipes;
 mod static_server;
@@ -38,6 +39,8 @@ pub struct AppState {
     recipes: Mutex<Vec<recipes::Recipe>>,
     /// Live UPnP port mappings keyed by project id (Minecraft "expose to internet").
     exposures: Mutex<std::collections::HashMap<String, ActiveMapping>>,
+    /// Latest process-resource snapshot from the sampler (for initial paint).
+    last_stats: Mutex<Vec<monitor::ProcStat>>,
 }
 
 #[derive(Clone)]
@@ -364,6 +367,16 @@ fn run_dependency_audit(
 #[tauri::command]
 fn stop_project(id: String, state: tauri::State<AppState>) -> Result<(), String> {
     state.manager.stop(&id)
+}
+
+#[tauri::command]
+fn stop_all_projects(state: tauri::State<AppState>) {
+    state.manager.stop_all();
+}
+
+#[tauri::command]
+fn get_process_stats(state: tauri::State<AppState>) -> Vec<monitor::ProcStat> {
+    state.last_stats.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -1012,7 +1025,9 @@ pub fn run() {
                 recipes: Mutex::new(recipes::load_recipes(&recipes_dir)),
                 recipes_dir,
                 exposures: Mutex::new(std::collections::HashMap::new()),
+                last_stats: Mutex::new(Vec::new()),
             });
+            monitor::spawn_sampler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1030,6 +1045,8 @@ pub fn run() {
             get_ports_overview,
             start_project,
             stop_project,
+            stop_all_projects,
+            get_process_stats,
             restart_project,
             run_command_audit,
             run_doctor,

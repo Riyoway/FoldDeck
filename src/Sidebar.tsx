@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Reorder, useDragControls } from "framer-motion";
 import { Button } from "@heroui/react";
 import {
+  Activity,
   GitBranch,
   GripVertical,
   LayoutDashboard,
@@ -22,7 +23,9 @@ interface Props {
   width: number;
   collapsed: boolean;
   onToggle: () => void;
+  topView: "dashboard" | "monitor";
   onSelectDashboard: () => void;
+  onSelectMonitor: () => void;
   onSelectProject: (id: string) => void;
   onAddFolder: () => void;
   onReorder: (ids: string[]) => void;
@@ -109,7 +112,9 @@ export default function Sidebar({
   width,
   collapsed,
   onToggle,
+  topView,
   onSelectDashboard,
+  onSelectMonitor,
   onSelectProject,
   onAddFolder,
   onReorder,
@@ -119,6 +124,7 @@ export default function Sidebar({
   onImportGit,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
+  const runningCount = projects.filter((p) => statuses[p.id]?.running).length;
   const [query, setQuery] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const draggingRef = useRef(false);
@@ -203,11 +209,19 @@ export default function Sidebar({
           </Button>
         </div>
         <button
-          className={`rail-item ${selectedId === null ? "rail-selected" : ""}`}
+          className={`rail-item ${selectedId === null && topView === "dashboard" ? "rail-selected" : ""}`}
           title="Dashboard"
           onClick={onSelectDashboard}
         >
           <LayoutDashboard size={18} />
+        </button>
+        <button
+          className={`rail-item ${selectedId === null && topView === "monitor" ? "rail-selected" : ""}`}
+          title="Monitor"
+          onClick={onSelectMonitor}
+        >
+          <Activity size={18} />
+          {runningCount > 0 && <span className="rail-dot" />}
         </button>
         <div className="rail-list">
           {order.map((id) => {
@@ -265,11 +279,19 @@ export default function Sidebar({
       </div>
 
       <div
-        className={`row row-nav ${selectedId === null ? "row-selected" : ""}`}
+        className={`row row-nav ${selectedId === null && topView === "dashboard" ? "row-selected" : ""}`}
         onClick={onSelectDashboard}
       >
         <LayoutDashboard size={14} />
         <span className="row-name">Dashboard</span>
+      </div>
+      <div
+        className={`row row-nav ${selectedId === null && topView === "monitor" ? "row-selected" : ""}`}
+        onClick={onSelectMonitor}
+      >
+        <Activity size={14} />
+        <span className="row-name">Monitor</span>
+        {runningCount > 0 && <span className="counter">{runningCount}</span>}
       </div>
 
       {projects.length === 0 ? (

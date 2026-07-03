@@ -2337,6 +2337,178 @@ body.resizing-v {
   user-select: text;
 }
 
+/* ---- monitor (task manager) ---- */
+
+.monitor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: panel-in 0.2s ease both;
+}
+
+.mon-head {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mon-metrics {
+  display: flex;
+  gap: 24px;
+}
+
+.mon-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mon-metric-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
+.mon-metric-val {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mon-charts {
+  display: flex;
+  gap: 20px;
+  margin-left: auto;
+}
+
+.mon-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mon-chart-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.mon-spark {
+  display: block;
+}
+
+.mon-empty {
+  margin: auto;
+  padding: 40px;
+}
+
+.mon-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.mon-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.mon-sortable {
+  cursor: pointer;
+}
+
+.mon-sortable:hover,
+.mon-sorted {
+  color: var(--text);
+}
+
+.mon-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.mon-table tbody tr {
+  cursor: pointer;
+}
+
+.mon-table tbody tr:hover {
+  background: var(--panel-hover);
+}
+
+.mon-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.mon-col-icon {
+  width: 24px;
+  padding-right: 0 !important;
+}
+
+.mon-name {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.mon-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.mon-cpu,
+.mon-mem {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mon-membar {
+  display: inline-block;
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.mon-membar > span {
+  display: block;
+  height: 100%;
+  background: rgba(88, 166, 255, 0.55);
+}
+
+.mon-col-act {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
 /* ---- animations ---- */
 
 @keyframes panel-in {

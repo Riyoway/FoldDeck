@@ -42,6 +42,7 @@ import GitImportModal from "./GitImportModal";
 import LogView from "./LogView";
 import MarkdownView from "./MarkdownView";
 import MinecraftPanel from "./MinecraftPanel";
+import MonitorView from "./MonitorView";
 import TerminalView from "./TerminalView";
 import EnvEditor from "./EnvEditor";
 import PackagePanel from "./PackagePanel";
@@ -116,6 +117,7 @@ function App() {
   const [statuses, setStatuses] = useState<Record<string, ProjectStatus>>({});
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [topView, setTopView] = useState<"dashboard" | "monitor">("dashboard");
   const [tab, setTab] = useState<Tab>("logs");
   const [view, setView] = useState<"main" | "settings">("main");
   const [renaming, setRenaming] = useState(false);
@@ -474,7 +476,15 @@ function App() {
           width={sidebarWidth}
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebar(!sidebarCollapsed)}
-          onSelectDashboard={() => setSelectedId(null)}
+          topView={topView}
+          onSelectDashboard={() => {
+            setSelectedId(null);
+            setTopView("dashboard");
+          }}
+          onSelectMonitor={() => {
+            setSelectedId(null);
+            setTopView("monitor");
+          }}
           onSelectProject={selectProject}
           onAddFolder={addFolder}
           onReorder={reorderProjects}
@@ -486,16 +496,27 @@ function App() {
 
         <main className="detail">
           {!selected ? (
-            <Dashboard
-              projects={projects}
-              statuses={statuses}
-              onSelect={selectProject}
-              onStart={start}
-              onStop={(id) => call("stop_project", { id })}
-              onChanged={refreshProjects}
-              onProjectContextMenu={projectContextMenu}
-              onBackgroundContextMenu={generalContextMenu}
-            />
+            topView === "monitor" ? (
+              <MonitorView
+                projects={projects}
+                statuses={statuses}
+                onSelect={selectProject}
+                onStop={(id) => call("stop_project", { id })}
+                onRestart={(id) => call("restart_project", { id })}
+                onStopAll={() => call("stop_all_projects", {})}
+              />
+            ) : (
+              <Dashboard
+                projects={projects}
+                statuses={statuses}
+                onSelect={selectProject}
+                onStart={start}
+                onStop={(id) => call("stop_project", { id })}
+                onChanged={refreshProjects}
+                onProjectContextMenu={projectContextMenu}
+                onBackgroundContextMenu={generalContextMenu}
+              />
+            )
           ) : (
             <>
               <div

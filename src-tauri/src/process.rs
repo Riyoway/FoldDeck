@@ -535,6 +535,25 @@ impl ProcessManager {
         }
     }
 
+    /// (project id, root pid) for each running project. None pid = an in-process
+    /// static server (no OS process tree to sample).
+    pub fn running_procs(&self) -> Vec<(String, Option<u32>)> {
+        self.projects
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(id, rt)| {
+                rt.proc.as_ref().map(|p| {
+                    let pid = match &p.handle {
+                        ProcHandle::Child { pid } => Some(*pid),
+                        ProcHandle::Internal { .. } => None,
+                    };
+                    (id.clone(), pid)
+                })
+            })
+            .collect()
+    }
+
     pub fn stop_all(&self) {
         let ids: Vec<String> = {
             let projects = self.projects.lock().unwrap();

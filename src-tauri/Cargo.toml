@@ -27,4 +27,5 @@ serde_yaml = "0.9"
 base64 = "0.22"
 portable-pty = "0.8"
 igd-next = "0.17"
+sysinfo = "0.39"
 
