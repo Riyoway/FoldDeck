@@ -2053,22 +2053,30 @@ body.resizing-v {
   width: 100%;
 }
 
-/* Subtle dark scrollbar that reads as part of the terminal. */
-.term-host .xterm-viewport::-webkit-scrollbar {
-  width: 10px;
+/* The terminal only scrolls vertically. */
+.term-host .xterm-viewport {
+  overflow-x: hidden !important;
 }
 
-.term-host .xterm-viewport::-webkit-scrollbar-track {
+/* Theme every scrollbar inside the terminal (both axes + corner) so the
+   default blue horizontal bar and white corner never show. */
+.term-host ::-webkit-scrollbar {
+  width: 10px;
+  height: 0; /* no horizontal scrollbar */
+}
+
+.term-host ::-webkit-scrollbar-track,
+.term-host ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-.term-host .xterm-viewport::-webkit-scrollbar-thumb {
+.term-host ::-webkit-scrollbar-thumb {
   background: #2a2a30;
   border-radius: 5px;
   border: 2px solid #050506;
 }
 
-.term-host .xterm-viewport::-webkit-scrollbar-thumb:hover {
+.term-host ::-webkit-scrollbar-thumb:hover {
   background: #3a3a42;
 }
 
