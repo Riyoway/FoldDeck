@@ -22,7 +22,6 @@ import {
   ExternalLink,
   FolderOpen,
   Minus,
-  PanelLeftClose,
   PanelLeftOpen,
   Pencil,
   Play,
@@ -327,10 +326,9 @@ function App() {
       { key: "copy", label: "Copy all logs", icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText((logs[id] ?? []).join("\n")) },
     ]);
 
-  const toggleSidebar = () => {
-    const next = !sidebarCollapsed;
-    setSidebarCollapsed(next);
-    setSetting("sidebarCollapsed", next);
+  const setSidebar = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+    setSetting("sidebarCollapsed", collapsed);
   };
 
   const changeSidebarWidth = (w: number) => {
@@ -389,9 +387,9 @@ function App() {
   return (
     <div className="app">
       <header className="titlebar" data-tauri-drag-region>
-        {view === "main" && (
-          <button className="tb-btn tb-toggle" title="Toggle sidebar" onClick={toggleSidebar}>
-            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        {view === "main" && sidebarCollapsed && (
+          <button className="tb-btn tb-toggle" title="Show sidebar" onClick={() => setSidebar(false)}>
+            <PanelLeftOpen size={16} />
           </button>
         )}
         <span className="brand" data-tauri-drag-region>
@@ -444,6 +442,7 @@ function App() {
             onResize={changeSidebarWidth}
             onProjectContextMenu={projectContextMenu}
             onBackgroundContextMenu={generalContextMenu}
+            onCollapse={() => setSidebar(true)}
           />
         )}
 

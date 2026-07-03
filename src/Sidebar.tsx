@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { Button } from "@heroui/react";
-import { GripVertical, LayoutDashboard, Plus } from "lucide-react";
+import { GripVertical, LayoutDashboard, PanelLeftClose, Plus } from "lucide-react";
 import ProjectIcon from "./ProjectIcon";
 import type { ProjectInfo, ProjectStatus } from "./App";
 
@@ -17,6 +17,7 @@ interface Props {
   onResize: (width: number) => void;
   onProjectContextMenu: (e: React.MouseEvent, project: ProjectInfo) => void;
   onBackgroundContextMenu: (e: React.MouseEvent) => void;
+  onCollapse: () => void;
 }
 
 const MIN_W = 210;
@@ -47,7 +48,7 @@ function ProjectRow({
       dragListener={false}
       dragControls={controls}
       className={`row ${selected ? "row-selected" : ""}`}
-      onClick={() => onSelect(project.id)}
+      onTap={() => onSelect(project.id)}
       onContextMenu={(e: React.MouseEvent) => onContextMenu(e, project)}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -94,6 +95,7 @@ export default function Sidebar({
   onResize,
   onProjectContextMenu,
   onBackgroundContextMenu,
+  onCollapse,
 }: Props) {
   const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
   const draggingRef = useRef(false);
@@ -141,12 +143,21 @@ export default function Sidebar({
       <div className="sidebar-actions">
         <Button
           size="md"
-          fullWidth
-          className="btn-green"
+          className="btn-green sidebar-add"
           startContent={<Plus size={14} />}
           onPress={onAddFolder}
         >
           Add folder
+        </Button>
+        <Button
+          isIconOnly
+          size="md"
+          variant="light"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          onPress={onCollapse}
+        >
+          <PanelLeftClose size={16} />
         </Button>
       </div>
 

@@ -260,12 +260,16 @@ body.resizing {
 }
 
 .sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px;
   border-bottom: 1px solid var(--border);
 }
 
-.sidebar-actions .btn {
-  width: 100%;
+.sidebar-add {
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar-empty {
