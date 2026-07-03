@@ -661,6 +661,18 @@ body.resizing-v {
   text-decoration: underline;
 }
 
+.url-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.url-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .ok-text {
   color: var(--green);
 }

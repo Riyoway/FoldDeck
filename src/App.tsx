@@ -82,6 +82,7 @@ export interface ProjectStatus {
   running: boolean;
   startedAt?: number | null;
   url?: string | null;
+  networkUrl?: string | null;
   crashCount: number;
   lastExitCode?: number | null;
   lastStoppedAt?: number | null;
@@ -587,15 +588,32 @@ function App() {
                       <span className="ok-text">running</span>
                       <span className="dim">{formatUptime(st?.startedAt)}</span>
                       {url && (
-                        <a
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            openUrl(url);
-                          }}
-                        >
-                          {url}
-                        </a>
+                        <span className="url-item">
+                          <span className="dim url-label">Local</span>
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openUrl(url);
+                            }}
+                          >
+                            {url.replace(/^https?:\/\//, "")}
+                          </a>
+                        </span>
+                      )}
+                      {st?.networkUrl && (
+                        <span className="url-item">
+                          <span className="dim url-label">Network</span>
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openUrl(st.networkUrl!);
+                            }}
+                          >
+                            {st.networkUrl.replace(/^https?:\/\//, "")}
+                          </a>
+                        </span>
                       )}
                     </>
                   ) : (

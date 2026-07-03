@@ -18,6 +18,7 @@ pub struct ProjectStatus {
     pub running: bool,
     pub started_at: Option<u64>,
     pub url: Option<String>,
+    pub network_url: Option<String>,
     pub crash_count: u32,
     pub last_exit_code: Option<i32>,
     pub last_stopped_at: Option<u64>,
@@ -34,6 +35,7 @@ struct RunningProc {
     started_at: u64,
     user_stopped: Arc<AtomicBool>,
     url: Arc<Mutex<Option<String>>>,
+    network_url: Arc<Mutex<Option<String>>>,
     /// Extra command to run in the project dir after stopping (docker compose stop).
     on_stop_command: Option<(String, String)>,
 }
@@ -153,19 +155,48 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
+/// The URL token starting at `pos`, trimmed of a trailing slash.
+fn url_token_at(line: &str, pos: usize, scheme_len: usize) -> String {
+    let rest = &line[pos..];
+    let end = rest
+        .char_indices()
+        .find(|(i, c)| {
+            *i >= scheme_len && !c.is_ascii_alphanumeric() && !matches!(c, ':' | '/' | '.')
+        })
+        .map(|(i, _)| i)
+        .unwrap_or(rest.len());
+    rest[..end].trim_end_matches('/').to_string()
+}
+
 fn extract_local_url(line: &str) -> Option<String> {
     for host in ["http://localhost", "https://localhost", "http://127.0.0.1"] {
         if let Some(pos) = line.find(host) {
-            let rest = &line[pos..];
-            let end = rest
-                .char_indices()
-                .find(|(i, c)| {
-                    *i >= host.len() && !c.is_ascii_alphanumeric() && !matches!(c, ':' | '/' | '.')
-                })
-                .map(|(i, _)| i)
-                .unwrap_or(rest.len());
-            let url = rest[..end].trim_end_matches('/');
-            return Some(url.to_string());
+            return Some(url_token_at(line, pos, host.len()));
+        }
+    }
+    None
+}
+
+/// A LAN URL like http://192.168.1.5:5173 (dev servers' "Network:" line).
+fn extract_network_url(line: &str) -> Option<String> {
+    for scheme in ["http://", "https://"] {
+        let mut from = 0;
+        while let Some(rel) = line[from..].find(scheme) {
+            let pos = from + rel;
+            let host_start = pos + scheme.len();
+            let host: String = line[host_start..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            let octets: Vec<&str> = host.split('.').collect();
+            let is_ipv4 = octets.len() == 4 && octets.iter().all(|o| o.parse::<u8>().is_ok());
+            let is_loopback = host.starts_with("127.") || host == "0.0.0.0";
+            // Require a port so we don't grab bare IPs from log noise.
+            let has_port = line[host_start + host.len()..].starts_with(':');
+            if is_ipv4 && !is_loopback && has_port {
+                return Some(url_token_at(line, pos, scheme.len()));
+            }
+            from = pos + scheme.len();
         }
     }
     None
@@ -212,6 +243,7 @@ impl ProcessManager {
         let pid = child.id();
         let secrets = Arc::new(collect_secrets(project));
         let url_slot: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let net_slot: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
 
@@ -230,6 +262,7 @@ impl ProcessManager {
             let logs = runtime.logs.clone();
             let secrets = secrets.clone();
             let url_slot = url_slot.clone();
+            let net_slot = net_slot.clone();
             let requests = runtime.requests.clone();
             std::thread::spawn(move || {
                 let reader = BufReader::new(pipe);
@@ -244,6 +277,12 @@ impl ProcessManager {
                     if url_slot.lock().unwrap().is_none() {
                         if let Some(url) = extract_local_url(&plain) {
                             *url_slot.lock().unwrap() = Some(url.clone());
+                            let _ = app.emit("project-url", LogEvent { id: id.clone(), line: url });
+                        }
+                    }
+                    if net_slot.lock().unwrap().is_none() {
+                        if let Some(url) = extract_network_url(&plain) {
+                            *net_slot.lock().unwrap() = Some(url.clone());
                             let _ = app.emit("project-url", LogEvent { id: id.clone(), line: url });
                         }
                     }
@@ -270,6 +309,7 @@ impl ProcessManager {
             started_at: now_secs(),
             user_stopped: user_stopped.clone(),
             url: url_slot,
+            network_url: net_slot,
             on_stop_command,
         });
 
@@ -337,6 +377,7 @@ impl ProcessManager {
             started_at: now_secs(),
             user_stopped: Arc::new(AtomicBool::new(true)), // never counts as a crash
             url: url_slot,
+            network_url: Arc::new(Mutex::new(None)),
             on_stop_command: None,
         });
 
@@ -461,6 +502,7 @@ impl ProcessManager {
                 running: rt.proc.is_some(),
                 started_at: rt.proc.as_ref().map(|p| p.started_at),
                 url: rt.proc.as_ref().and_then(|p| p.url.lock().unwrap().clone()),
+                network_url: rt.proc.as_ref().and_then(|p| p.network_url.lock().unwrap().clone()),
                 crash_count: rt.crash_count.load(Ordering::SeqCst),
                 last_exit_code: rt.last_exit_code,
                 last_stopped_at: rt.last_stopped_at,
@@ -470,6 +512,7 @@ impl ProcessManager {
                 running: false,
                 started_at: None,
                 url: None,
+                network_url: None,
                 crash_count: 0,
                 last_exit_code: None,
                 last_stopped_at: None,
@@ -524,6 +567,12 @@ mod tests {
             Some("http://127.0.0.1:8000")
         );
         assert_eq!(extract_local_url("no url here"), None);
+        assert_eq!(
+            extract_network_url("  ➜  Network: http://192.168.1.5:5173/").as_deref(),
+            Some("http://192.168.1.5:5173")
+        );
+        assert_eq!(extract_network_url("Local: http://localhost:5173/"), None);
+        assert_eq!(extract_network_url("http://127.0.0.1:8000/"), None);
         // Vite colours the port with ANSI codes between the colon and digits.
         assert_eq!(
             extract_local_url(&strip_ansi("Local:   \x1b[36mhttp://localhost:\x1b[1m5173\x1b[22m/\x1b[39m"))
