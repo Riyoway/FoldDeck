@@ -1807,20 +1807,7 @@ body.resizing-v {
 /* Actions reveal on hover/focus only in compact rows (no button wall at rest). */
 .proj-grid-compact .proj-card-actions {
   margin: 0;
-  opacity: 0;
-  transition: opacity 0.12s;
   flex-shrink: 0;
-}
-
-.proj-grid-compact .proj-card:hover .proj-card-actions,
-.proj-grid-compact .proj-card:focus-within .proj-card-actions {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proj-grid-compact .proj-card-actions {
-    transition: none;
-  }
 }
 
 .proj-card-head {
