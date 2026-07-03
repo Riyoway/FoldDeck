@@ -101,33 +101,102 @@ const FAVICON_PATHS: &[&str] = &[
     "favicon.ico",
     "favicon.svg",
     "favicon.png",
+    "icon.svg",
+    "icon.png",
     "public/favicon.ico",
     "public/favicon.svg",
     "public/favicon.png",
+    "public/favicon.jpg",
+    "public/icon.svg",
+    "public/icon.png",
+    "public/logo.svg",
+    "public/logo.png",
+    // Next.js app-router icon conventions.
     "app/favicon.ico",
+    "app/icon.ico",
+    "app/icon.svg",
+    "app/icon.png",
     "src/app/favicon.ico",
+    "src/app/icon.ico",
+    "src/app/icon.svg",
+    "src/app/icon.png",
     "static/favicon.ico",
+    "static/favicon.svg",
     "static/favicon.png",
+    "assets/favicon.ico",
+    "assets/favicon.svg",
+    "assets/favicon.png",
 ];
 
-fn find_favicon(dir: &Path) -> Option<String> {
+const ENTRY_HTML: &[&str] = &["index.html", "public/index.html", "src/index.html"];
+
+fn icon_data_uri(path: &Path) -> Option<String> {
     use base64::Engine;
-    for rel in FAVICON_PATHS {
-        let path = dir.join(rel);
-        let Ok(meta) = path.metadata() else { continue };
-        if !meta.is_file() || meta.len() > 128 * 1024 {
+    let meta = path.metadata().ok()?;
+    if !meta.is_file() || meta.len() > 512 * 1024 {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    let mime = match path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref() {
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        _ => "image/x-icon",
+    };
+    Some(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(&bytes)))
+}
+
+/// Extracts the href of the first `<link rel="...icon...">` in the HTML.
+fn parse_icon_href(html: &str) -> Option<String> {
+    let lower = html.to_lowercase();
+    let mut from = 0;
+    while let Some(rel) = lower[from..].find("<link") {
+        let start = from + rel;
+        let end = lower[start..].find('>').map(|e| start + e + 1).unwrap_or(html.len());
+        let tag = &html[start..end];
+        let tag_lower = &lower[start..end];
+        from = end;
+        if !(tag_lower.contains("rel=") && tag_lower.contains("icon")) {
             continue;
         }
-        let Ok(bytes) = std::fs::read(&path) else { continue };
-        let mime = match path.extension().and_then(|e| e.to_str()) {
-            Some("svg") => "image/svg+xml",
-            Some("png") => "image/png",
-            _ => "image/x-icon",
-        };
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        return Some(format!("data:{};base64,{}", mime, b64));
+        // Pull the quoted value of href=.
+        if let Some(hpos) = tag_lower.find("href=") {
+            let rest = &tag[hpos + 5..];
+            let bytes = rest.as_bytes();
+            let (quote, body) = match bytes.first() {
+                Some(b'"') | Some(b'\'') => (bytes[0] as char, &rest[1..]),
+                _ => continue,
+            };
+            if let Some(qend) = body.find(quote) {
+                let href = body[..qend].trim().to_string();
+                if !href.is_empty() && !href.starts_with("data:") && !href.starts_with("http") && !href.starts_with("//") {
+                    return Some(href);
+                }
+            }
+        }
     }
     None
+}
+
+fn find_favicon(dir: &Path) -> Option<String> {
+    // 1. Honour the icon referenced by the entry HTML (arbitrary paths).
+    for html in ENTRY_HTML {
+        let html_path = dir.join(html);
+        let Ok(content) = std::fs::read_to_string(&html_path) else { continue };
+        let Some(href) = parse_icon_href(&content) else { continue };
+        let rel = href.trim_start_matches('/');
+        let base = html_path.parent().unwrap_or(dir);
+        // Root-relative resolves from the project root; also try the doc's own dir.
+        for cand in [dir.join(rel), base.join(&href), dir.join("public").join(rel)] {
+            if let Some(uri) = icon_data_uri(&cand) {
+                return Some(uri);
+            }
+        }
+    }
+    // 2. Common conventional locations.
+    FAVICON_PATHS.iter().find_map(|rel| icon_data_uri(&dir.join(rel)))
 }
 
 fn classify(path: &str) -> ProjectInfo {
@@ -493,6 +562,33 @@ mod tests {
             std::fs::write(p, content).unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn favicon_from_html_link_and_conventions() {
+        assert_eq!(
+            parse_icon_href(r#"<link rel="icon" type="image/svg+xml" href="/vite.svg" />"#).as_deref(),
+            Some("/vite.svg")
+        );
+        assert_eq!(
+            parse_icon_href(r#"<link href="favicon.png" rel="shortcut icon">"#).as_deref(),
+            Some("favicon.png")
+        );
+        assert_eq!(parse_icon_href(r#"<link rel="stylesheet" href="a.css">"#), None);
+
+        // Vite-style: index.html references public/vite.svg.
+        let dir = tmp(
+            "favicon-vite",
+            &[
+                ("index.html", r#"<link rel="icon" href="/vite.svg">"#),
+                ("public/vite.svg", "<svg></svg>"),
+            ],
+        );
+        assert!(find_favicon(&dir).unwrap().starts_with("data:image/svg+xml;base64,"));
+
+        // Next.js app-router convention with no HTML link.
+        let dir = tmp("favicon-next", &[("app/icon.png", "PNGDATA")]);
+        assert!(find_favicon(&dir).unwrap().starts_with("data:image/png;base64,"));
     }
 
     #[test]
