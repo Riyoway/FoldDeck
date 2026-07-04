@@ -52,7 +52,7 @@ import RequestChart from "./RequestChart";
 import SettingsPage from "./SettingsPage";
 import Sidebar from "./Sidebar";
 import { confirmCommandAudit } from "./audit";
-import { applyUiFont, applyUiZoom, getSetting, setSetting } from "./settings";
+import { applyUiZoom, getSetting, setSetting } from "./settings";
 import "./App.css";
 
 const appWindow = getCurrentWindow();
@@ -167,7 +167,6 @@ function App() {
 
   useEffect(() => {
     applyUiZoom();
-    applyUiFont();
     refreshAll();
     const unlisteners = [
       listen<{ id: string; line: string }>("project-log", (e) => {

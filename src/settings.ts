@@ -13,8 +13,6 @@ type Settings = {
   terminalFontFamily: string;
   /** Clone destination for Git imports; empty = Documents/GitHub. */
   gitImportDir: string;
-  /** UI font family; empty = built-in default. */
-  uiFontFamily: string;
   /** Projects grid density on the dashboard. */
   dashDensity: "comfortable" | "compact";
 };
@@ -31,20 +29,12 @@ const DEFAULTS: Settings = {
   terminalFontSize: 13,
   terminalFontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
   gitImportDir: "",
-  uiFontFamily: "",
   dashDensity: "comfortable",
 };
 
 /** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */
 export function applyUiZoom(): void {
   (document.body.style as CSSStyleDeclaration & { zoom: string }).zoom = String(getSetting("uiZoom"));
-}
-
-/** Overrides the --font-ui CSS variable used across the app chrome. */
-export function applyUiFont(): void {
-  const f = getSetting("uiFontFamily").trim();
-  if (f) document.documentElement.style.setProperty("--font-ui", f);
-  else document.documentElement.style.removeProperty("--font-ui");
 }
 
 function load(): Settings {

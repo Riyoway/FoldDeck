@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Input, Select, SelectItem, Switch, Tab, Tabs } from "@heroui/react";
 import { FolderOpen, RotateCcw } from "lucide-react";
-import { applyUiFont, applyUiZoom, getSetting, setSetting } from "./settings";
+import { applyUiZoom, getSetting, setSetting } from "./settings";
 
 type Section =
   | "appearance"
@@ -38,15 +38,6 @@ const SHELL_PRESETS: [string, string][] = [
 ];
 
 const TERM_FONT_SIZES = [12, 13, 14, 16];
-
-const UI_FONT_PRESETS: [string, string][] = [
-  ["Default", ""],
-  ["Segoe UI", '"Segoe UI", system-ui, sans-serif'],
-  ["System UI", "system-ui, sans-serif"],
-  ["Inter", 'Inter, "Segoe UI", sans-serif'],
-  ["Roboto", 'Roboto, "Segoe UI", sans-serif'],
-  ["Verdana", "Verdana, sans-serif"],
-];
 
 const FONT_PRESETS: [string, string][] = [
   ["Cascadia Code", '"Cascadia Code", "Cascadia Mono", Consolas, monospace'],
@@ -109,9 +100,6 @@ export default function SettingsPage() {
   const [version, setVersion] = useState("");
   const [recipeMsg, setRecipeMsg] = useState<string | null>(null);
   const [zoom, setZoom] = useState(getSetting("uiZoom"));
-  const [uiFont, setUiFont] = useState(getSetting("uiFontFamily"));
-  const uiFontCustom = !UI_FONT_PRESETS.some(([, v]) => v === getSetting("uiFontFamily"));
-  const [uiFontCustomMode, setUiFontCustomMode] = useState(uiFontCustom);
   const [fileServer, setFileServer] = useState(getSetting("fileServerDefault"));
   const [termShell, setTermShell] = useState(getSetting("terminalShell"));
   const [termSize, setTermSize] = useState(getSetting("terminalFontSize"));
@@ -183,59 +171,6 @@ export default function SettingsPage() {
                   <Tab key={String(z)} title={label} />
                 ))}
               </Tabs>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-row-text">
-                <div className="settings-label">Interface font</div>
-                <div className="settings-desc">Font used across the app UI.</div>
-              </div>
-              <div className="settings-control-col">
-                <Select
-                  size="md"
-                  aria-label="Interface font"
-                  className="settings-input"
-                  selectedKeys={[uiFontCustomMode ? "__custom__" : uiFont]}
-                  onSelectionChange={(keys) => {
-                    const key = Array.from(keys)[0] as string | undefined;
-                    if (key === undefined) return;
-                    if (key === "__custom__") {
-                      setUiFontCustomMode(true);
-                    } else {
-                      setUiFontCustomMode(false);
-                      setUiFont(key);
-                      setSetting("uiFontFamily", key);
-                      applyUiFont();
-                    }
-                  }}
-                >
-                  {[
-                    ...UI_FONT_PRESETS.map(([label, value]) => (
-                      <SelectItem key={value} textValue={label}>
-                        <span style={{ fontFamily: value || undefined }}>{label}</span>
-                      </SelectItem>
-                    )),
-                    <SelectItem key="__custom__" textValue="Custom">
-                      Custom…
-                    </SelectItem>,
-                  ]}
-                </Select>
-                {uiFontCustomMode && (
-                  <Input
-                    size="sm"
-                    variant="bordered"
-                    className="settings-input"
-                    value={uiFont}
-                    onValueChange={(v) => {
-                      setUiFont(v);
-                      setSetting("uiFontFamily", v);
-                      applyUiFont();
-                    }}
-                    placeholder='"Segoe UI", system-ui, sans-serif'
-                    aria-label="Custom interface font"
-                  />
-                )}
-              </div>
             </div>
           </>
         )}
