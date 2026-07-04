@@ -17,7 +17,7 @@ interface Props {
   logs: string[];
 }
 
-const READY_RE = /\b(ready|logged in|connected|online)\b/i;
+const READY_RE = /\b(ready|logged in|connected|online)\b|on_ready/i;
 const CLIENT_ID_KEYS = ["CLIENT_ID", "DISCORD_CLIENT_ID", "APPLICATION_ID", "APP_ID"];
 
 function fmtTime(secs?: number | null): string {
@@ -40,7 +40,22 @@ export default function BotPanel({ project, status, logs }: Props) {
   }, [project.id, project.envFiles]);
 
   const running = !!status?.running;
-  const connection = running ? (logs.some((l) => READY_RE.test(l)) ? "online" : "connecting…") : "offline";
+  const startedAt = status?.startedAt ?? 0;
+  // Once a "ready" line is seen this run, stay online — the ready line scrolls
+  // out of the log buffer, so re-checking the current buffer would wrongly
+  // flip an online bot back to "connecting…".
+  const [readySeen, setReadySeen] = useState(false);
+  useEffect(() => {
+    setReadySeen(false); // new run (start/restart) → re-detect
+  }, [startedAt]);
+  useEffect(() => {
+    if (running && !readySeen && logs.some((l) => READY_RE.test(l))) setReadySeen(true);
+  }, [running, logs, readySeen]);
+
+  // Fallback: a bot that has been up a while (e.g. the ready line was already
+  // gone when the panel opened) is almost certainly connected.
+  const uptime = startedAt ? Math.floor(Date.now() / 1000) - startedAt : 0;
+  const connection = !running ? "offline" : readySeen || uptime > 15 ? "online" : "connecting…";
 
   const inviteUrl = clientId
     ? `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=0&scope=bot%20applications.commands`
