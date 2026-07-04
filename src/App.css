@@ -2384,6 +2384,14 @@ body.resizing-v {
   color: var(--muted);
 }
 
+/* Global stop action pins to the header's right edge, whether or not the charts
+   (which also push right) are shown. */
+.mon-stop {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
 .mon-charts {
   display: flex;
   gap: 20px;

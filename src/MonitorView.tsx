@@ -185,7 +185,15 @@ export default function MonitorView({
             </div>
           </div>
         )}
-        <Button size="sm" variant="light" color="danger" onPress={onStopAll} isDisabled={!running.length}>
+        <Button
+          size="sm"
+          variant="flat"
+          color="danger"
+          className="mon-stop"
+          startContent={<Square size={13} />}
+          onPress={onStopAll}
+          isDisabled={!running.length}
+        >
           Stop all
         </Button>
       </div>
