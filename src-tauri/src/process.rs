@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, Manager};
 const LOG_BUFFER_LINES: usize = 2000;
 
 /// PowerShell prelude: refresh PATH from the registry (Machine + User) so tools
-/// installed after the app launched — java, node, package managers — resolve.
+/// installed after the app launched, java, node, package managers, resolve.
 const PATH_REFRESH: &str = "$env:Path=($env:Path+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User'));";
 
 /// The single place every command is run: PowerShell (same as the Terminal tab)

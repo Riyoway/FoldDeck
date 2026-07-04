@@ -141,7 +141,7 @@ function Brand({ icon, size }: { icon: SimpleIcon; size: number }) {
   );
 }
 
-/** Minecraft has no brand mark (trademark) — a tidy grass block stands in. */
+/** Minecraft has no brand mark (trademark), a tidy grass block stands in. */
 function MinecraftIcon({ size }: { size: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ flexShrink: 0 }}>

@@ -198,7 +198,7 @@ function App() {
   }, [addPaths, refreshAll, refreshStatuses]);
 
   useEffect(() => {
-    // Scroll the terminal container itself — never scrollIntoView, which also
+    // Scroll the terminal container itself, never scrollIntoView, which also
     // scrolls ancestor scroll containers and would lift the whole app (and the
     // titlebar) off the top of the window.
     if (tab === "logs" && getSetting("logAutoScroll") && terminalRef.current) {
@@ -223,7 +223,7 @@ function App() {
     const unlisten = [
       appWindow.onMoved(async ({ payload }) => {
         // Windows parks minimized windows at ~(-32000, -32000). Repositioning
-        // then corrupts the window and it restores transparent — never clamp.
+        // then corrupts the window and it restores transparent, never clamp.
         if (payload.y <= -30000) return;
         if ((await appWindow.isMinimized()) || (await appWindow.isMaximized())) return;
         const mon = await currentMonitor();
@@ -808,17 +808,17 @@ function App() {
                         ["id", selected.id],
                         ["path", selected.path],
                         ["type", selected.kind + (selected.subtype ? ` / ${selected.subtype}` : "")],
-                        ["framework", selected.framework ?? "—"],
-                        ["runtime", selected.runtime ?? "—"],
-                        ["package manager", selected.packageManager ?? "—"],
-                        ["start command", selected.startCommand ?? "—"],
-                        ["default port", selected.defaultPort?.toString() ?? "—"],
-                        ["env files", selected.envFiles.join(", ") || "—"],
-                        ["lockfiles", selected.lockfiles.join(", ") || "—"],
+                        ["framework", selected.framework ?? "-"],
+                        ["runtime", selected.runtime ?? "-"],
+                        ["package manager", selected.packageManager ?? "-"],
+                        ["start command", selected.startCommand ?? "-"],
+                        ["default port", selected.defaultPort?.toString() ?? "-"],
+                        ["env files", selected.envFiles.join(", ") || "-"],
+                        ["lockfiles", selected.lockfiles.join(", ") || "-"],
                         [
                           "dependencies",
                           selected.depsInstalled == null
-                            ? "—"
+                            ? "-"
                             : selected.depsInstalled
                               ? "installed"
                               : "missing",
@@ -859,7 +859,7 @@ function App() {
                   app, but you can serve its files over HTTP and browse them from a browser.
                 </p>
                 <p className="dim" style={{ fontSize: "12.5px" }}>
-                  Your choice is remembered for this project — change it anytime in Settings →
+                  Your choice is remembered for this project, change it anytime in Settings →
                   Servers.
                 </p>
               </ModalBody>

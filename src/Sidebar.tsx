@@ -85,7 +85,7 @@ function ProjectRow({
       onContextMenu={(e: React.MouseEvent) => onContextMenu(e, project)}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      // Only animate transform — framer leaves inline background/box-shadow
+      // Only animate transform, framer leaves inline background/box-shadow
       // behind on drop, so those live in .row-dragging (a real class) instead.
       whileDrag={{ scale: 1.03 }}
     >

@@ -49,7 +49,7 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
 
   const runScript = async (script: string) => {
     const command = runCommand(pm, script);
-    // The script body is what actually runs — audit it, not just the runner.
+    // The script body is what actually runs, audit it, not just the runner.
     const body = project.scripts[script] ?? "";
     if (!(await confirmCommandAudit(`${command}\n(${body})`))) return;
     call("run_project_command", { id: project.id, command });
@@ -66,7 +66,7 @@ export default function PackagePanel({ project, onChanged, onRan, onError }: Pro
       if (result.supported) {
         setAudit(result);
       } else {
-        // No structured output for this manager — stream the raw command to Logs.
+        // No structured output for this manager, stream the raw command to Logs.
         await call("run_project_command", { id: project.id, command: rawAuditCommand });
       }
     } catch (e) {

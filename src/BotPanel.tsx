@@ -21,7 +21,7 @@ const READY_RE = /\b(ready|logged in|connected|online)\b|on_ready/i;
 const CLIENT_ID_KEYS = ["CLIENT_ID", "DISCORD_CLIENT_ID", "APPLICATION_ID", "APP_ID"];
 
 function fmtTime(secs?: number | null): string {
-  if (!secs) return "—";
+  if (!secs) return "-";
   return new Date(secs * 1000).toLocaleString();
 }
 
@@ -41,7 +41,7 @@ export default function BotPanel({ project, status, logs }: Props) {
 
   const running = !!status?.running;
   const startedAt = status?.startedAt ?? 0;
-  // Once a "ready" line is seen this run, stay online — the ready line scrolls
+  // Once a "ready" line is seen this run, stay online, the ready line scrolls
   // out of the log buffer, so re-checking the current buffer would wrongly
   // flip an online bot back to "connecting…".
   const [readySeen, setReadySeen] = useState(false);
@@ -76,11 +76,11 @@ export default function BotPanel({ project, status, logs }: Props) {
       </div>
       <div className="info-row">
         <span className="info-key">runtime</span>
-        <span className="info-val">{project.runtime ?? "—"}</span>
+        <span className="info-val">{project.runtime ?? "-"}</span>
       </div>
       <div className="info-row">
         <span className="info-key">framework</span>
-        <span className="info-val">{project.framework ?? "—"}</span>
+        <span className="info-val">{project.framework ?? "-"}</span>
       </div>
       <div className="info-row">
         <span className="info-key">last started</span>

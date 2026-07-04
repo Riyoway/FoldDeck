@@ -36,14 +36,14 @@ interface ExposeStatus {
 function FallbackBlock({ port }: { port: number }) {
   return (
     <div className="mc-fallback">
-      <div className="mc-fallback-title">Use a tunnel instead — no router setup, and it hides your home IP.</div>
+      <div className="mc-fallback-title">Use a tunnel instead, no router setup, and it hides your home IP.</div>
       <p className="dim">
         A tunnel like{" "}
         <a href="#" onClick={(e) => { e.preventDefault(); openUrl("https://playit.gg"); }}>
           playit.gg
         </a>{" "}
         gives players a public address that works even behind CGNAT: install it, point it at port{" "}
-        {port}, and share the address it prints — friends join with unmodified Minecraft.
+        {port}, and share the address it prints, friends join with unmodified Minecraft.
       </p>
     </div>
   );
@@ -111,11 +111,11 @@ function ExposeSection({
   const pv = (k: string) => props?.find((p) => p.key === k)?.value;
   const warnings: string[] = [];
   if (pv("online-mode") === "false")
-    warnings.push("online-mode=false — anyone can join as any username (even an op's). Turn it back on before exposing.");
+    warnings.push("online-mode=false, anyone can join as any username (even an op's). Turn it back on before exposing.");
   if (pv("white-list") !== undefined && pv("white-list") !== "true")
-    warnings.push("white-list is off — the whole internet can join. Set white-list=true in server.properties.");
+    warnings.push("white-list is off, the whole internet can join. Set white-list=true in server.properties.");
   if (pv("enable-rcon") === "true")
-    warnings.push("enable-rcon=true — never forward RCON (25575). Only the game port is opened.");
+    warnings.push("enable-rcon=true, never forward RCON (25575). Only the game port is opened.");
 
   return (
     <div className="mc-expose">
@@ -152,13 +152,13 @@ function ExposeSection({
       {state === "open" && (
         <>
           <p className="ok-text mc-icon-line">
-            <ShieldCheck size={15} /> Open — internet players can join.
+            <ShieldCheck size={15} /> Open. Internet players can join.
           </p>
           <ConnectAddress label="internet players" addr={addr} />
           <ConnectAddress label="LAN players" addr={`${lanIp ?? "your-lan-ip"}:${port}`} />
           <p className="dim mc-note">
             Testing this public address from your own network may fail (router hairpin) even when
-            outside players connect fine — ask a friend to test.
+            outside players connect fine, ask a friend to test.
           </p>
           {result?.permanent && (
             <p className="dim mc-note">
@@ -175,7 +175,7 @@ function ExposeSection({
             </Button>
           </div>
           <p className="dim mc-note">
-            Forwarding the router port isn't always enough — Windows must also allow it inbound
+            Forwarding the router port isn't always enough, Windows must also allow it inbound
             (approve Java's prompt, or click the button above).
           </p>
         </>
@@ -196,7 +196,7 @@ function ExposeSection({
 
       {state === "unsupported" && (
         <>
-          <p className="warn-text">Automatic port setup unavailable — UPnP is off or unsupported on your router.</p>
+          <p className="warn-text">Automatic port setup unavailable. UPnP is off or unsupported on your router.</p>
           <div className="info-table mc-manual">
             <div className="info-row"><span className="info-key">protocol</span><span className="info-val">TCP</span></div>
             <div className="info-row"><span className="info-key">port (ext + int)</span><span className="info-val">{port}</span></div>
@@ -298,7 +298,7 @@ export default function MinecraftPanel({
     <div className="info-table">
       <div className="info-row">
         <span className="info-key">server jar</span>
-        <span className="info-val">{info.jar ?? "none — add a server .jar to this folder"}</span>
+        <span className="info-val">{info.jar ?? "none, add a server .jar to this folder"}</span>
       </div>
       <div className="info-row">
         <span className="info-key">port</span>
@@ -384,7 +384,7 @@ export default function MinecraftPanel({
           </>
         ) : (
           <p className="ok-text mc-icon-line">
-            <Check size={15} /> EULA accepted — ready to start.
+            <Check size={15} /> EULA accepted. Ready to start.
           </p>
         )}
       </div>

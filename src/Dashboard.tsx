@@ -107,7 +107,7 @@ export default function Dashboard({
     shown.sort(
       (a, b) => Number(!!statuses[b.id]?.running) - Number(!!statuses[a.id]?.running),
     );
-  // Pinned always float to the top (stable — keeps the chosen order within groups).
+  // Pinned always float to the top (stable, keeps the chosen order within groups).
   shown.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   const SORTS: [typeof sort, string][] = [
     ["manual", "Manual"],
@@ -437,7 +437,7 @@ export default function Dashboard({
                         {p.running ? (
                           <span className="ok-text">running</span>
                         ) : p.busy ? (
-                          <span className="warn-text">in use — will auto-pick another</span>
+                          <span className="warn-text">in use, will auto-pick another</span>
                         ) : (
                           <span className="dim">free</span>
                         )}

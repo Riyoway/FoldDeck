@@ -370,7 +370,7 @@ fn detect_desktop(dir: &Path, info: &mut ProjectInfo) -> bool {
         if has("@tauri-apps/cli") {
             detect_node_package_manager(dir, info);
             let pm = info.package_manager.as_deref().unwrap_or("npm");
-            // `<pm> tauri dev` — the tauri CLI runs beforeDevCommand + the window.
+            // `<pm> tauri dev`, the tauri CLI runs beforeDevCommand + the window.
             info.start_command = Some(format!("{} dev", pm_run(pm, "tauri")));
             node_modules_warning(dir, info);
         } else {
@@ -562,7 +562,7 @@ fn detect_jvm(dir: &Path, info: &mut ProjectInfo) -> bool {
             format!("{} run", gw)
         });
     } else {
-        // Generic JVM project — no reliable run command to guess.
+        // Generic JVM project, no reliable run command to guess.
         info.kind = "worker".into();
         info.framework = Some(if is_maven { "Maven" } else { "Gradle" }.into());
     }
@@ -790,7 +790,7 @@ fn detect_minecraft(dir: &Path, info: &mut ProjectInfo) -> bool {
 
     if jar.is_some() && !eula_accepted(dir) {
         info.warnings
-            .push("Minecraft EULA is not accepted — accept it in the Minecraft tab.".into());
+            .push("Minecraft EULA is not accepted, accept it in the Minecraft tab.".into());
     }
     true
 }

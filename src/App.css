@@ -273,7 +273,7 @@ body.resizing {
   min-width: 0;
 }
 
-/* collapsed rail — toggle stays at the same top-left spot as the open header */
+/* collapsed rail, toggle stays at the same top-left spot as the open header */
 .sidebar-rail {
   width: 56px;
   flex-shrink: 0;
@@ -337,7 +337,7 @@ body.resizing {
   border: 1.5px solid var(--bg);
 }
 
-/* Keep HeroUI bordered inputs calm: a single subtle border — no focus ring
+/* Keep HeroUI bordered inputs calm: a single subtle border, no focus ring
    (the outer box-shadow) and no leftover outline on the inner input, which
    together looked like a double frame. */
 [data-slot="input-wrapper"] {
@@ -1678,7 +1678,7 @@ body.resizing-v {
   background: var(--amber);
 }
 
-/* Whole-card running wash — a 5% solid mix, not a gradient. */
+/* Whole-card running wash, a 5% solid mix, not a gradient. */
 .proj-card--running {
   background: color-mix(in srgb, var(--green) 5%, var(--panel));
 }
@@ -1975,7 +1975,7 @@ body.resizing-v {
   color: var(--amber);
 }
 
-/* Green CTA (Add folder) — the one intentional color besides danger red. */
+/* Green CTA (Add folder), the one intentional color besides danger red. */
 .btn-green {
   background-color: #238636 !important;
   color: #fff !important;
@@ -2099,7 +2099,7 @@ body.resizing-v {
 }
 
 /* Paint every xterm layer the terminal bg so any fit leftover / gutter blends
-   away — no lighter/darker frame around the content. */
+   away, no lighter/darker frame around the content. */
 .term-host .xterm,
 .term-host .xterm-viewport,
 .term-host .xterm-screen {
@@ -2116,7 +2116,7 @@ body.resizing-v {
 }
 
 /* xterm v6 draws its OWN scrollbar (a VS Code-style DOM element), not a native
-   ::-webkit-scrollbar — that blue bar was its slider. Hide the scrollbar and
+   ::-webkit-scrollbar, that blue bar was its slider. Hide the scrollbar and
    the inset edge shadows entirely (wheel/keyboard scroll still works). */
 .term-host .xterm-scrollable-element > .scrollbar,
 .term-host .xterm-scrollable-element > .shadow {

@@ -257,7 +257,7 @@ export default function MonitorView({
                         {p.path.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}
                       </span>
                     </td>
-                    <td className="mon-num dim">{ps?.pid ? ps.pid : "—"}</td>
+                    <td className="mon-num dim">{ps?.pid ? ps.pid : "-"}</td>
                     <td className="mon-num mon-cpu">
                       <span className="mon-cell">
                         {histRef.current[p.id] && (
@@ -266,7 +266,7 @@ export default function MonitorView({
                         {ps === undefined ? (
                           <span className="mon-val dim">…</span>
                         ) : (
-                          <span className="mon-val">{ps.cpu != null ? `${ps.cpu.toFixed(0)}%` : "—"}</span>
+                          <span className="mon-val">{ps.cpu != null ? `${ps.cpu.toFixed(0)}%` : "-"}</span>
                         )}
                       </span>
                     </td>
@@ -285,12 +285,12 @@ export default function MonitorView({
                           </span>
                         )}
                         <span className="mon-val">
-                          {ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "—"}
+                          {ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "-"}
                         </span>
                       </span>
                     </td>
-                    <td className="mon-num dim">{formatUptime(st?.startedAt) || "—"}</td>
-                    <td className="mon-num dim">{port ?? "—"}</td>
+                    <td className="mon-num dim">{formatUptime(st?.startedAt) || "-"}</td>
+                    <td className="mon-num dim">{port ?? "-"}</td>
                     <td className="mon-col-act" onClick={(e) => e.stopPropagation()}>
                       <Button isIconOnly size="sm" variant="light" aria-label="Stop" onPress={() => onStop(p.id)}>
                         <Square size={14} />

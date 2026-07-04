@@ -80,7 +80,7 @@ export default function GitImportModal({ open, onClose, onImported }: Props) {
             }}
           />
           <p className="dim git-dest">
-            Clones into <code className="inline-code">{destDir || "…"}</code> — change it in
+            Clones into <code className="inline-code">{destDir || "…"}</code>, change it in
             Settings → Git.
           </p>
           {error && <div className="error-bar git-error">{error}</div>}

@@ -627,7 +627,7 @@ fn git_import(
     }
     if !status.success() {
         let _ = std::fs::remove_dir_all(&target);
-        return Err("git clone failed — check the URL and the log.".into());
+        return Err("git clone failed, check the URL and the log.".into());
     }
     Ok(target.to_string_lossy().to_string())
 }
@@ -742,7 +742,7 @@ fn read_minecraft_properties(
 ) -> Result<Vec<PropEntry>, String> {
     let dir_str = find_stored(&state, &id)?.path;
     let raw = std::fs::read_to_string(Path::new(&dir_str).join("server.properties"))
-        .map_err(|_| "server.properties not generated yet — start the server once.".to_string())?;
+        .map_err(|_| "server.properties not generated yet, start the server once.".to_string())?;
     Ok(raw
         .lines()
         .filter(|l| !l.trim_start().starts_with('#') && l.contains('='))
@@ -839,7 +839,7 @@ fn mc_expose_open(id: String, state: tauri::State<AppState>) -> Result<ExposeRes
         .ok_or("Could not determine this PC's LAN IP.")?;
 
     let gateway = search_gateway(SearchOptions::default())
-        .map_err(|_| "No UPnP-capable router found — UPnP may be disabled on your router.")?;
+        .map_err(|_| "No UPnP-capable router found, UPnP may be disabled on your router.")?;
     let wan = gateway
         .get_external_ip()
         .map_err(|e| format!("Could not read the router's public IP: {e}"))?;
@@ -861,7 +861,7 @@ fn mc_expose_open(id: String, state: tauri::State<AppState>) -> Result<ExposeRes
     }
 
     if cgnat {
-        // A CGNAT mapping is useless — remove it and route the UI to the tunnel fallback.
+        // A CGNAT mapping is useless, remove it and route the UI to the tunnel fallback.
         let _ = gateway.remove_port(PortMappingProtocol::TCP, port);
         return Ok(ExposeResult {
             public_address: String::new(),
@@ -917,7 +917,7 @@ fn mc_expose_status(id: String, state: tauri::State<AppState>) -> Option<ExposeS
 }
 
 /// Adds a Windows Defender Firewall inbound allow rule for the port (elevated,
-/// one UAC prompt). Router forwarding alone isn't enough — Windows must allow it.
+/// one UAC prompt). Router forwarding alone isn't enough, Windows must allow it.
 #[tauri::command]
 fn mc_add_firewall_rule(port: u16) -> Result<(), String> {
     #[cfg(windows)]

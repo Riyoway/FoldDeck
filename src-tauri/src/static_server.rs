@@ -225,7 +225,7 @@ fn handle(stream: &mut TcpStream, root: &Path) -> (String, u16) {
 }
 
 /// Blocking accept loop. Returns when `stop` is set (stop() pokes the port to
-/// unblock accept). ponytail: serves one request at a time — fine for local
+/// unblock accept). ponytail: serves one request at a time, fine for local
 /// static sites, switch to a thread-per-conn if someone hosts a video gallery.
 pub fn run(root: PathBuf, listener: TcpListener, stop: Arc<AtomicBool>, mut log: impl FnMut(String)) {
     for stream in listener.incoming() {

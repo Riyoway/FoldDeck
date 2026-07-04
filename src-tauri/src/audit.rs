@@ -11,7 +11,7 @@ pub struct DoctorReport {
 }
 
 /// Static pattern scan of a command line before it runs.
-/// ponytail: substring heuristics, not a shell parser — good enough for a
+/// ponytail: substring heuristics, not a shell parser, good enough for a
 /// "look before you run someone else's start script" warning.
 pub fn audit_command(command: &str) -> Vec<String> {
     let c = command.to_lowercase();
@@ -148,14 +148,14 @@ fn scan_bot_logs(logs: &[String], errors: &mut Vec<String>, warnings: &mut Vec<S
 
     if any(&["disallowed intents", "privileged intent"]) {
         errors.push(
-            "Privileged intents error in logs — enable the required intents in the Discord Developer Portal.".into(),
+            "Privileged intents error in logs, enable the required intents in the Discord Developer Portal.".into(),
         );
     }
     if any(&["invalid token", "incorrect login", "401: unauthorized", "tokeninvalid"]) {
-        errors.push("Invalid token error in logs — check DISCORD_TOKEN in .env.".into());
+        errors.push("Invalid token error in logs, check DISCORD_TOKEN in .env.".into());
     }
     if any(&["missing access", "missing permissions"]) {
-        warnings.push("Missing permissions error in logs — check the bot's role/permissions in your server.".into());
+        warnings.push("Missing permissions error in logs, check the bot's role/permissions in your server.".into());
     }
     if any(&["rate limit", "ratelimit"]) {
         warnings.push("Rate limit warnings in logs.".into());

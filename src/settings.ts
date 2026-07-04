@@ -32,7 +32,7 @@ const DEFAULTS: Settings = {
   dashDensity: "comfortable",
 };
 
-/** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium — scales everything uniformly. */
+/** ponytail: CSS `zoom` is non-standard but WebView2 is Chromium, scales everything uniformly. */
 export function applyUiZoom(): void {
   (document.body.style as CSSStyleDeclaration & { zoom: string }).zoom = String(getSetting("uiZoom"));
 }
