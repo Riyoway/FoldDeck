@@ -252,19 +252,18 @@ export default function MonitorView({
                     <td className="mon-num dim">{ps?.pid ? ps.pid : "—"}</td>
                     <td className="mon-num mon-cpu">
                       <span className="mon-cell">
-                        {ps === undefined ? (
-                          <span className="dim">…</span>
-                        ) : (
-                          <span>{ps.cpu != null ? `${ps.cpu.toFixed(0)}%` : "—"}</span>
-                        )}
                         {histRef.current[p.id] && (
                           <Spark series={histRef.current[p.id]} w={54} h={16} />
+                        )}
+                        {ps === undefined ? (
+                          <span className="mon-val dim">…</span>
+                        ) : (
+                          <span className="mon-val">{ps.cpu != null ? `${ps.cpu.toFixed(0)}%` : "—"}</span>
                         )}
                       </span>
                     </td>
                     <td className="mon-num mon-mem">
                       <span className="mon-cell">
-                        <span>{ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "—"}</span>
                         {ps?.memMb != null && (
                           <span
                             className="mon-membar"
@@ -277,6 +276,9 @@ export default function MonitorView({
                             />
                           </span>
                         )}
+                        <span className="mon-val">
+                          {ps?.memMb != null ? `${ps.memMb.toFixed(0)} MB` : "—"}
+                        </span>
                       </span>
                     </td>
                     <td className="mon-num dim">{formatUptime(st?.startedAt) || "—"}</td>

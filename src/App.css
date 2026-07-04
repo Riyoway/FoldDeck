@@ -2463,6 +2463,11 @@ body.resizing-v {
   white-space: nowrap;
 }
 
+/* Numeric headers right-align to match their cells (base thead rule is left). */
+.mon-table thead th.mon-num {
+  text-align: right;
+}
+
 .mon-sortable {
   cursor: pointer;
 }
@@ -2528,17 +2533,19 @@ body.resizing-v {
   vertical-align: middle;
 }
 
-/* Pin value widths so live numbers don't shove the sparkline/bar around. */
-.mon-cpu .mon-cell > span:first-child {
+/* The value sits at the cell's right edge (under the header); the spark/bar to
+   its left. Pin the value width so live numbers don't shove things around. */
+.mon-val {
   display: inline-block;
-  min-width: 4ch;
   text-align: right;
 }
 
-.mon-mem .mon-cell > span:first-child {
-  display: inline-block;
+.mon-cpu .mon-val {
+  min-width: 4ch;
+}
+
+.mon-mem .mon-val {
   min-width: 7ch;
-  text-align: right;
 }
 
 .mon-membar {
