@@ -292,7 +292,7 @@ export default function MinecraftPanel({
   };
 
   if (error) return <div className="info-table">{error}</div>;
-  if (!info) return <div className="info-table dim">Loading…</div>;
+  if (!info) return <div className="info-table dim loading-text">Loading…</div>;
 
   return (
     <div className="info-table">

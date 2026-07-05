@@ -118,6 +118,7 @@ function App() {
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [topView, setTopView] = useState<"dashboard" | "monitor">("dashboard");
+  const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<Tab>("logs");
   const [view, setView] = useState<"main" | "settings">("main");
   const [renaming, setRenaming] = useState(false);
@@ -167,7 +168,7 @@ function App() {
 
   useEffect(() => {
     applyUiZoom();
-    refreshAll();
+    refreshAll().finally(() => setLoaded(true));
     const unlisteners = [
       listen<{ id: string; line: string }>("project-log", (e) => {
         setLogs((prev) => {
@@ -508,6 +509,7 @@ function App() {
               <Dashboard
                 projects={projects}
                 statuses={statuses}
+                loaded={loaded}
                 onSelect={selectProject}
                 onStart={start}
                 onStop={(id) => call("stop_project", { id })}

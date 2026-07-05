@@ -34,6 +34,7 @@ interface PortInfo {
 interface Props {
   projects: ProjectInfo[];
   statuses: Record<string, ProjectStatus>;
+  loaded: boolean;
   onSelect: (id: string) => void;
   onStart: (project: ProjectInfo) => void;
   onStop: (id: string) => void;
@@ -45,6 +46,7 @@ interface Props {
 export default function Dashboard({
   projects,
   statuses,
+  loaded,
   onSelect,
   onStart,
   onStop,
@@ -124,6 +126,17 @@ export default function Dashboard({
     ["stopped", "Stopped"],
     ["warnings", "Warnings"],
   ];
+
+  if (!loaded) {
+    return (
+      <div className="dashboard dashboard-loading" onContextMenu={onBackgroundContextMenu}>
+        <div className="loading-center">
+          <span className="spinner" />
+          <span className="loading-text">Loading projects…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard" onContextMenu={onBackgroundContextMenu}>
@@ -231,7 +244,7 @@ export default function Dashboard({
           </div>
         ) : (
           <div className={`proj-grid ${density === "compact" ? "proj-grid-compact" : ""}`}>
-            {shown.map((p) => {
+            {shown.map((p, i) => {
               const st = statuses[p.id];
               const isRunning = !!st?.running;
               const url =
@@ -252,6 +265,7 @@ export default function Dashboard({
                 <div
                   key={p.id}
                   className={`proj-card proj-card--${cardState}`}
+                  style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }}
                   role="button"
                   tabIndex={0}
                   aria-label={`Open ${p.name}`}
