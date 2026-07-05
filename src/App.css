@@ -11,7 +11,7 @@
   --muted: #8a8a93;
   --accent: #e4e4e7;
   --accent-emphasis: #d4d4d8;
-  --accent-soft: rgba(255, 255, 255, 0.08);
+  --accent-soft: rgba(255, 255, 255, 0.13);
   --green: #3fb950;
   --green-emphasis: #238636;
   --red: #d1565a;
@@ -323,7 +323,6 @@ body.resizing {
 .rail-selected,
 .rail-selected:hover {
   background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .rail-dot {
@@ -467,7 +466,6 @@ body.resizing {
 .row-selected,
 .row-selected:hover {
   background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .row-dragging {
@@ -1283,7 +1281,6 @@ body.resizing-v {
 .settings-nav-active,
 .settings-nav-active:hover {
   background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
   font-weight: 600;
 }
 
